@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle de Matéria-Prima</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --ink:     #0d1117;
+      --paper:   #f6f8fa;
+      --accent:  #00c896;
+      --accent2: #0284c7;
+      --warn:    #f59e0b;
+      --danger:  #ef4444;
+      --border:  #d0d7de;
+      --muted:   #656d76;
+      --sidebar: #0d1117;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      display: flex;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 248px;
+      min-height: 100vh;
+      background: var(--sidebar);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      border-right: 1px solid #21262d;
+      transition: transform .25s ease;
+      z-index: 60;
+    }
+
+    .sidebar-logo {
+      padding: 26px 22px 20px;
+      border-bottom: 1px solid #21262d;
+    }
+    .sidebar-logo .brand {
+      font-family: 'Syne', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.02em;
+      line-height: 1.25;
+    }
+    .sidebar-logo .sub {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-top: 4px;
+    }
+
+    nav { padding: 12px 8px; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+
+    .nav-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: 8px;
+      font-size: 13.5px; font-weight: 500;
+      color: #8b949e; cursor: pointer;
+      transition: background .15s, color .15s;
+      border: none; background: transparent; text-align: left; width: 100%;
+    }
+    .nav-btn:hover { background: #161b22; color: #c9d1d9; }
+    .nav-btn.active { background: #1c2733; color: var(--accent); }
+    .nav-btn svg { flex-shrink: 0; opacity: .75; }
+    .nav-btn.active svg { opacity: 1; }
+
+    .nav-divider { border: none; border-top: 1px solid #21262d; margin: 8px 0; }
+
+    .sidebar-footer { padding: 14px 16px; border-top: 1px solid #21262d; }
+    .status-chip { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #485460; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: blink 2s ease-in-out infinite; }
+    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+
+    /* ── Main ── */
+    #main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; height: 100vh; }
+
+    .topbar {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 13px 28px;
+      display: flex; align-items: center; gap: 12px;
+      position: sticky; top: 0; z-index: 40;
+    }
+    #menu-toggle { display: none; background: none; border: none; cursor: pointer; color: var(--ink); padding: 4px; }
+    .topbar-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; color: var(--ink); }
+    .topbar-badge {
+      margin-left: auto; font-size: 11px; font-weight: 600;
+      background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;
+      padding: 3px 9px; border-radius: 99px;
+    }
+
+    /* ── Sections ── */
+    .section { display: none; padding: 28px; }
+    .section.active { display: block; }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+
+    .stat-card {
+      background: var(--ink);
+      border-radius: 12px;
+      padding: 20px 22px;
+      color: #fff;
+      border: 1px solid #21262d;
+    }
+    .stat-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 2rem;
+      color: var(--accent);
+      line-height: 1;
+      font-weight: 500;
+    }
+    .stat-lbl {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .08em;
+      color: #485460; margin-top: 7px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 18px; border-radius: 8px;
+      font-size: 13.5px; font-weight: 600; cursor: pointer;
+      transition: filter .15s, transform .1s;
+      border: none; font-family: 'DM Sans', sans-serif;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-green  { background: var(--accent); color: #0d1117; }
+    .btn-green:hover  { filter: brightness(1.08); }
+    .btn-blue   { background: var(--accent2); color: #fff; }
+    .btn-blue:hover   { filter: brightness(1.1); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { filter: brightness(1.08); }
+    .btn-ghost  { background: transparent; border: 1.5px solid var(--border); color: var(--muted); }
+    .btn-ghost:hover  { background: var(--paper); color: var(--ink); }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2px dashed #c8d8f0;
+      border-radius: 14px; background: #f8fbff;
+      padding: 44px 24px;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      cursor: pointer; transition: all .2s;
+      font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+      color: var(--accent2); text-align: center;
+    }
+    .upload-zone:hover { border-color: var(--accent2); background: #eff6ff; }
+    .upload-zone.green { border-color: #b8edd8; background: #f0fef8; color: #065f46; }
+    .upload-zone.green:hover { border-color: var(--accent); background: #e0faf2; }
+    .upload-zone svg { opacity: .7; }
+    .upload-zone .hint { font-size: 12px; font-weight: 400; font-family: 'DM Sans',sans-serif; color: var(--muted); }
+    input[type=file] { display: none !important; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; padding: 9px 14px; background: var(--paper); border-bottom: 1px solid var(--border); text-align: left; }
+    td { padding: 11px 14px; font-size: 13.5px; border-bottom: 1px solid #f0f4f8; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #fafcff; }
+    .mono { font-family: 'DM Mono', monospace; }
+
+    /* Alerts */
+    .alert { border-radius: 10px; padding: 12px 16px; font-size: 13.5px; font-weight: 500; display: flex; align-items: flex-start; gap: 9px; }
+    .alert svg { flex-shrink: 0; margin-top: 1px; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .alert-error   { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .alert-warn    { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .alert-info    { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+
+    /* Spinner */
+    .spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.25); border-top-color: #fff; border-radius: 50%; animation: spin .65s linear infinite; }
+    .spinner.dark { border-color: rgba(0,0,0,.15); border-top-color: var(--ink); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Progress bar */
+    .prog-wrap { height: 5px; background: #e5e7eb; border-radius: 99px; overflow: hidden; margin-top: 5px; }
+    .prog-bar  { height: 100%; border-radius: 99px; background: var(--accent); transition: width .4s; }
+
+    /* Week card */
+    .week-card {
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; cursor: pointer;
+      transition: border-color .15s, box-shadow .15s;
+      background: #fff;
+    }
+    .week-card:hover { border-color: var(--accent2); box-shadow: 0 2px 10px rgba(2,132,199,.1); }
+    .week-badge {
+      display: inline-block; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+      background: #f0f9ff; color: var(--accent2); border: 1px solid #bae6fd;
+      padding: 2px 8px; border-radius: 99px; margin-bottom: 5px;
+    }
+
+    .chart-wrap { position: relative; height: 300px; }
+
+    /* Loading overlay */
+    #loading-overlay {
+      position: fixed; inset: 0; background: rgba(13,17,23,.72);
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px; z-index: 9999;
+      color: #fff; font-family: 'Syne', sans-serif; font-size: 15px;
+    }
+    #loading-overlay.show { display: flex; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9998;
+      padding: 13px 20px; border-radius: 10px; font-weight: 600; font-size: 14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.18); transform: translateY(20px); opacity: 0;
+      transition: all .25s; pointer-events: none; max-width: 380px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { background: #166534; color: #fff; }
+    #toast.error   { background: #991b1b; color: #fff; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #sidebar { position: fixed; transform: translateX(-248px); }
+      #sidebar.open { transform: translateX(0); box-shadow: 4px 0 20px rgba(0,0,0,.4); }
+      #menu-toggle { display: block; }
+      .section { padding: 16px; }
+      .topbar { padding: 12px 16px; }
+      .stat-val { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <span id="loading-text">Carregando...</span>
+</div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<!-- ===================================================
+  SIDEBAR
+=================================================== -->
+<aside id="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">Controle de<br>Matéria-Prima</div>
+    <div class="sub">Restaurante</div>
+  </div>
+
+  <nav>
+    <button class="nav-btn active" onclick="navigate('painel')" data-page="painel">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      Painel
+    </button>
+    <button class="nav-btn" onclick="navigate('fichas')" data-page="fichas">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Subir Fichas Técnicas
+    </button>
+    <button class="nav-btn" onclick="navigate('saidas')" data-page="saidas">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Subir Saídas Semanais
+    </button>
+    <button class="nav-btn" onclick="navigate('historico')" data-page="historico">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Histórico de Semanas
+    </button>
+    <button class="nav-btn" onclick="navigate('relatorios')" data-page="relatorios">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Relatórios de Consumo
+    </button>
+
+    <button class="nav-btn" onclick="navigate('uploads')" data-page="uploads">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/><circle cx="10" cy="15" r="2"/><path d="M20 17v1a2 2 0 01-2 2H6"/></svg>
+      Arquivos Enviados
+    </button>
+
+    <hr class="nav-divider" />
+
+    <button class="nav-btn" onclick="confirmClearAll()" style="color:#ef4444" data-page="">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      Limpar Todos os Dados
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="status-chip">
+      <div class="status-dot"></div>
+      <span>API conectada</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ===================================================
+  MAIN
+=================================================== -->
+<div id="main">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <button id="menu-toggle" onclick="toggleSidebar()">
+      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <span class="topbar-title" id="topbar-title">Painel</span>
+    <span class="topbar-badge" id="topbar-badge" style="display:none"></span>
+  </div>
+
+  <!-- ===================== PAINEL ===================== -->
+  <div class="section active" id="sec-painel" style="padding-bottom:40px">
+
+    <!-- Warning when no recipes -->
+    <div id="no-recipes-warn" style="display:none;margin-bottom:20px">
+      <div class="alert alert-warn">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div>⚠️ <strong>Suba as fichas técnicas primeiro!</strong> Sem receitas cadastradas, não é possível calcular o consumo de ingredientes.</div>
+      </div>
+    </div>
+
+    <!-- Stats grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:13px;margin-bottom:22px">
+      <div class="stat-card">
+        <div class="stat-val mono" id="dash-kg">—</div>
+        <div class="stat-lbl">kg consumidos (ano)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val mono" id="dash-porcoes">—</div>
+        <div class="stat-lbl">porções produzidas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val mono" id="dash-semanas">—</div>
+        <div class="stat-lbl">semanas registradas</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val mono" id="dash-fichas">—</div>
+        <div class="stat-lbl">fichas técnicas</div>
+      </div>
+    </div>
+
+    <!-- Top 5 + Last weeks -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div class="card">
+        <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:16px">Top 5 Ingredientes (ano atual)</h3>
+        <div id="dash-top5"><span style="color:var(--muted);font-size:13px">Sem dados ainda.</span></div>
+      </div>
+      <div class="card">
+        <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">Últimas Semanas</h3>
+        <div id="dash-recent"><span style="color:var(--muted);font-size:13px">Nenhuma semana registrada.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== FICHAS ===================== -->
+  <div class="section" id="sec-fichas">
+    <div id="fichas-alert" style="margin-bottom:16px"></div>
+
+    <input type="file" id="fichas-file" accept=".csv" />
+    <label for="fichas-file" class="upload-zone" style="margin-bottom:24px">
+      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+      Subir CSV das Fichas Técnicas
+      <span class="hint">Formato: Prato;Ingrediente;GramasPorPorcao — separador ; ou , detectado automaticamente</span>
+    </label>
+
+    <div class="alert alert-info" style="margin-bottom:20px">
+      <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <strong>Exemplo de CSV:</strong><br>
+        <span class="mono" style="font-size:12px">Medalhão ao Madeira;Filé Mignon;240</span><br>
+        <span class="mono" style="font-size:12px">Medalhão ao Madeira;Batata;150</span><br>
+        <span class="mono" style="font-size:12px">Filé à Parmegiana;Frango;200</span>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700">Receitas Cadastradas</h3>
+      <span id="fichas-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0</span>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Prato</th><th>Ingrediente</th><th>Gramas / Porção</th></tr></thead>
+          <tbody id="fichas-tbody">
+            <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== SAÍDAS ===================== -->
+  <div class="section" id="sec-saidas">
+    <div id="saidas-alert" style="margin-bottom:16px"></div>
+
+    <!-- Date range selector -->
+    <div class="card" style="margin-bottom:18px">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">Período do relatório</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Data início</div>
+          <input type="date" id="saidas-de" class="input-field" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none" />
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px">Data fim</div>
+          <input type="date" id="saidas-ate" class="input-field" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none" />
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="setSaidasThisWeek()" style="padding:8px 14px;font-size:12px">Esta semana</button>
+          <button class="btn btn-ghost" onclick="setSaidasLastWeek()" style="padding:8px 14px;font-size:12px">Semana passada</button>
+          <button class="btn btn-ghost" onclick="setSaidasThisMonth()" style="padding:8px 14px;font-size:12px">Este mês</button>
+        </div>
+      </div>
+      <div id="saidas-period-label" style="margin-top:10px;font-size:12px;color:var(--muted)">
+        Se não selecionar, será usada a semana atual automaticamente.
+      </div>
+    </div>
+
+    <input type="file" id="saidas-file" accept=".csv" />
+    <label for="saidas-file" class="upload-zone green" style="margin-bottom:22px">
+      <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      Subir Relatório de Vendas do PDV
+      <span class="hint">Baixe direto do sistema e suba aqui — sem editar o arquivo</span>
+    </label>
+
+    <div class="alert alert-info" style="margin-bottom:16px">
+      <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <strong>Formato aceito (direto do PDV):</strong><br>
+        <span class="mono" style="font-size:12px">categoria;grupo;codigo;descricao;qtd;vl_tot</span><br><br>
+        O sistema processa automaticamente apenas os pratos com ficha técnica cadastrada.
+        Bebidas, sobremesas, entradas e demais itens são ignorados.
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== HISTÓRICO ===================== -->
+  <div class="section" id="sec-historico">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Histórico de Semanas</h2>
+      <span id="hist-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0 semanas</span>
+    </div>
+
+    <div id="hist-grid" style="display:grid;gap:11px">
+      <div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhuma semana registrada ainda.</div>
+    </div>
+
+    <!-- Week detail -->
+    <div id="week-detail" class="card" style="display:none;margin-top:20px;padding:0;overflow:hidden">
+      <div style="padding:15px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <h3 id="week-detail-title" style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700"></h3>
+        <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px" onclick="document.getElementById('week-detail').style.display='none'">Fechar</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Ingrediente</th><th>Total kg</th></tr></thead>
+          <tbody id="week-detail-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== ARQUIVOS ENVIADOS ===================== -->
+  <div class="section" id="sec-uploads">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Arquivos Enviados</h2>
+      <span id="uploads-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0 arquivos</span>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Tipo</th>
+              <th>Arquivo</th>
+              <th>Semana</th>
+              <th>Resultado</th>
+            </tr>
+          </thead>
+          <tbody id="uploads-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">Nenhum arquivo enviado ainda.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== RELATÓRIOS ===================== -->
+  <div class="section" id="sec-relatorios">
+
+    <!-- Filter bar -->
+    <div class="card" style="margin-bottom:18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <div>
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px">Semana ISO</label>
+        <input type="week" id="rel-week-pick" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none" />
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end;padding-top:18px">
+        <button class="btn btn-blue" onclick="loadReport()">Filtrar</button>
+        <button class="btn btn-ghost" onclick="clearReport()">Limpar</button>
+        <button class="btn btn-green" onclick="exportRelCSV()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+      <div class="stat-card">
+        <div class="stat-val mono" id="rel-total-kg">—</div>
+        <div class="stat-lbl">kg total no período</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val mono" id="rel-porcoes">—</div>
+        <div class="stat-lbl">porções produzidas</div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card" style="margin-bottom:18px">
+      <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">kg por Ingrediente</h3>
+      <div class="chart-wrap">
+        <canvas id="chart-bar"></canvas>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Ingrediente</th><th>kg usado</th><th>% do total</th></tr></thead>
+          <tbody id="rel-tbody">
+            <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Selecione uma semana para ver o relatório.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end #main -->
+
+<!-- ===================================================
+  JAVASCRIPT
+=================================================== -->
+<script>
+// ── State ────────────────────────────────────────────
+let currentPage = 'painel';
+let barChart = null;
+let relCurrentData = [];
+
+const pageTitles = {
+  painel:    'Painel',
+  fichas:    'Fichas Técnicas',
+  saidas:    'Saídas Semanais',
+  historico: 'Histórico de Semanas',
+  relatorios:'Relatórios de Consumo',
+  uploads:   'Arquivos Enviados',
+};
+
+// ── Navigation ───────────────────────────────────────
+function navigate(page) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + page).classList.add('active');
+  const btn = document.querySelector(`[data-page="${page}"]`);
+  if (btn) btn.classList.add('active');
+  document.getElementById('topbar-title').textContent = pageTitles[page] ?? '';
+  document.getElementById('sidebar').classList.remove('open');
+  currentPage = page;
+
+  if (page === 'painel')    loadDashboard();
+  if (page === 'fichas')    loadFichas();
+  if (page === 'historico') loadHistorico();
+  if (page === 'relatorios') initRelatorios();
+  if (page === 'uploads')   loadUploads();
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ── API helpers ──────────────────────────────────────
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body instanceof FormData) {
+    opts.body = body;
+  } else if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({ error: 'Resposta inválida do servidor' }));
+  if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+  return data;
+}
+
+// ── Toast ────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+// ── Loading ──────────────────────────────────────────
+function setLoading(show, text = 'Processando...') {
+  const overlay = document.getElementById('loading-overlay');
+  overlay.classList.toggle('show', show);
+  document.getElementById('loading-text').textContent = text;
+}
+
+// ── Alert helpers ────────────────────────────────────
+function showAlert(elId, type, html) {
+  const icons = {
+    success: '<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    error:   '<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    warn:    '<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    info:    '<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  };
+  const el = document.getElementById(elId);
+  el.innerHTML = `<div class="alert alert-${type}">${icons[type]||''}<div>${html}</div></div>`;
+  setTimeout(() => { if (el) el.innerHTML = ''; }, 7000);
+}
+
+// ── Format week: "2026-W11" → "Semana 11 de 2026" ───
+function fmtWeek(code) {
+  const [yr, wk] = code.split('-W');
+  return `Semana ${parseInt(wk)} de ${yr}`;
+}
+
+// ── DASHBOARD ────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const data = await api('GET', '/api/dashboard');
+
+    document.getElementById('dash-kg').textContent = data.total_kg_this_year.toFixed(2);
+    document.getElementById('dash-porcoes').textContent = data.total_portions_this_year;
+    document.getElementById('dash-semanas').textContent = data.total_weeks;
+    document.getElementById('dash-fichas').textContent = data.recipe_count;
+
+    // No-recipes warning
+    document.getElementById('no-recipes-warn').style.display =
+      data.recipe_count === 0 ? 'block' : 'none';
+
+    // Top 5
+    const top5El = document.getElementById('dash-top5');
+    if (!data.top5_ingredients.length) {
+      top5El.innerHTML = '<span style="color:var(--muted);font-size:13px">Sem dados ainda.</span>';
+    } else {
+      const max = data.top5_ingredients[0].kg;
+      top5El.innerHTML = data.top5_ingredients.map((ing, i) => `
+        <div style="margin-bottom:13px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+            <span style="font-weight:600">${i + 1}. ${ing.ingredient}</span>
+            <span class="mono" style="color:var(--muted)">${ing.kg.toFixed(2)} kg</span>
+          </div>
+          <div class="prog-wrap"><div class="prog-bar" style="width:${(ing.kg/max*100).toFixed(0)}%"></div></div>
+        </div>
+      `).join('');
+    }
+
+    // Recent weeks
+    const recentEl = document.getElementById('dash-recent');
+    if (!data.recent_weeks.length) {
+      recentEl.innerHTML = '<span style="color:var(--muted);font-size:13px">Nenhuma semana registrada.</span>';
+    } else {
+      recentEl.innerHTML = data.recent_weeks.map(w => `
+        <div class="week-card" style="margin-bottom:9px" onclick="navigate('historico')">
+          <div class="week-badge">${w.week_code}</div>
+          <div style="font-size:14px;font-weight:600;font-family:'Syne',sans-serif">${fmtWeek(w.week_code)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${w.total_portions} porções · ${w.total_kg.toFixed(2)} kg</div>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    showToast('Erro ao carregar painel: ' + err.message, 'error');
+  }
+}
+
+// ── FICHAS TÉCNICAS ──────────────────────────────────
+document.getElementById('fichas-file').addEventListener('change', async function () {
+  if (!this.files[0]) return;
+  setLoading(true, 'Processando fichas técnicas...');
+
+  const fd = new FormData();
+  fd.append('file', this.files[0]);
+
+  try {
+    const data = await api('POST', '/api/recipes/upload', fd);
+    showAlert('fichas-alert', 'success', data.message);
+    showToast(data.message);
+    await loadFichas();
+  } catch (err) {
+    showAlert('fichas-alert', 'error', err.message);
+    showToast(err.message, 'error');
+  } finally {
+    setLoading(false);
+    this.value = '';
+  }
+});
+
+async function loadFichas() {
+  try {
+    // Fetch recipe_ingredients via a workaround – we call /api/recipes and build the table
+    const res = await fetch('/api/recipes');
+    const recipes = await res.json();
+
+    // Fetch all recipe_ingredients — we'll do a separate call to the Supabase-backed route
+    // Since we only expose /api/recipes listing dishes, we'll use dashboard's recipe_count
+    // For the full ingredient table, let's call GET /api/weeks/template (doesn't exist) –
+    // Instead we expose recipe details through the fichas route itself
+    // We need to add a /api/recipes/all endpoint or re-use something. Let's fetch direct:
+
+    // Call the full recipe table endpoint (we'll use a simple trick: fetch the fichas from
+    // our existing route pattern — we expose a combined endpoint below)
+    const fullRes = await fetch('/api/recipes/list');
+    if (fullRes.ok) {
+      const rows = await fullRes.json();
+      renderFichasTable(rows);
+    } else {
+      // Fallback: just show recipe names count
+      document.getElementById('fichas-count').textContent = recipes.length + ' pratos';
+      document.getElementById('fichas-tbody').innerHTML =
+        `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">${recipes.length} prato(s) cadastrado(s). Faça upload para ver detalhes.</td></tr>`;
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function renderFichasTable(rows) {
+  const tbody = document.getElementById('fichas-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr>';
+    document.getElementById('fichas-count').textContent = '0';
+    return;
+  }
+
+  let html = '';
+  let lastDish = null;
+  let dishCount = 0;
+  rows.forEach(r => {
+    const isNew = r.dish !== lastDish;
+    if (isNew) dishCount++;
+    html += `<tr>
+      <td style="font-weight:${isNew ? 600 : 400};color:${isNew ? 'var(--ink)' : 'var(--muted)'}">${isNew ? r.dish : ''}</td>
+      <td>${r.ingredient}</td>
+      <td class="mono">${r.grams_per_portion}g</td>
+    </tr>`;
+    lastDish = r.dish;
+  });
+
+  tbody.innerHTML = html;
+  document.getElementById('fichas-count').textContent = dishCount + ' pratos, ' + rows.length + ' ingredientes';
+}
+
+// ── SAÍDAS — helpers de data ─────────────────────────
+function toISODate(d) { return d.toISOString().slice(0, 10); }
+
+function getISOWeekCode(date) {
+  const jan4 = new Date(date.getFullYear(), 0, 4);
+  const start = new Date(jan4);
+  start.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  const diff = (date - start) / 864e5;
+  const wn = Math.floor(diff / 7) + 1;
+  return `${date.getFullYear()}-W${String(wn).padStart(2,'0')}`;
+}
+
+function setSaidasThisWeek() {
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7; // Monday = 0
+  const mon = new Date(now); mon.setDate(now.getDate() - dow);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  document.getElementById('saidas-de').value  = toISODate(mon);
+  document.getElementById('saidas-ate').value = toISODate(sun);
+  updateSaidasLabel();
+}
+
+function setSaidasLastWeek() {
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7;
+  const lastMon = new Date(now); lastMon.setDate(now.getDate() - dow - 7);
+  const lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate() + 6);
+  document.getElementById('saidas-de').value  = toISODate(lastMon);
+  document.getElementById('saidas-ate').value = toISODate(lastSun);
+  updateSaidasLabel();
+}
+
+function setSaidasThisMonth() {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  document.getElementById('saidas-de').value  = toISODate(first);
+  document.getElementById('saidas-ate').value = toISODate(last);
+  updateSaidasLabel();
+}
+
+function updateSaidasLabel() {
+  const de  = document.getElementById('saidas-de').value;
+  const ate = document.getElementById('saidas-ate').value;
+  const lbl = document.getElementById('saidas-period-label');
+  if (!de || !ate) { lbl.textContent = 'Se não selecionar, será usada a semana atual automaticamente.'; return; }
+  const fmtDe  = de.split('-').reverse().join('/');
+  const fmtAte = ate.split('-').reverse().join('/');
+  // Calculate week codes covered
+  const dStart = new Date(de + 'T12:00:00');
+  const dEnd   = new Date(ate + 'T12:00:00');
+  const weeks  = new Set();
+  const cur    = new Date(dStart);
+  while (cur <= dEnd) { weeks.add(getISOWeekCode(cur)); cur.setDate(cur.getDate() + 7); }
+  weeks.add(getISOWeekCode(dEnd));
+  const weekList = [...weeks].sort().join(', ');
+  lbl.innerHTML = `<strong>${fmtDe} até ${fmtAte}</strong> — semana(s) ISO: <span class="mono">${weekList}</span>`;
+}
+
+document.getElementById('saidas-de').addEventListener('change', updateSaidasLabel);
+document.getElementById('saidas-ate').addEventListener('change', updateSaidasLabel);
+
+// ── SAÍDAS — upload ───────────────────────────────────
+document.getElementById('saidas-file').addEventListener('change', async function () {
+  if (!this.files[0]) return;
+
+  const de  = document.getElementById('saidas-de').value;
+  const ate = document.getElementById('saidas-ate').value;
+
+  // Derive week codes from the selected date range
+  // If range spans multiple weeks, we use the week of the START date
+  // (user can upload once per week; for multi-week ranges the backend uses start week)
+  let weekCode = '';
+  if (de) {
+    weekCode = getISOWeekCode(new Date(de + 'T12:00:00'));
+  }
+
+  // If range covers multiple weeks, warn user
+  if (de && ate) {
+    const dStart = new Date(de + 'T12:00:00');
+    const dEnd   = new Date(ate + 'T12:00:00');
+    const weeks  = new Set();
+    const cur    = new Date(dStart);
+    while (cur <= dEnd) { weeks.add(getISOWeekCode(cur)); cur.setDate(cur.getDate() + 7); }
+    weeks.add(getISOWeekCode(dEnd));
+    if (weeks.size > 1) {
+      // Upload one per week — for now use start week and inform user
+      weekCode = [...weeks].sort()[0];
+    }
+  }
+
+  setLoading(true, 'Processando relatório de vendas...');
+  const fd = new FormData();
+  fd.append('file', this.files[0]);
+
+  const url = weekCode ? `/api/weeks/upload?weekCode=${weekCode}` : '/api/weeks/upload';
+
+  try {
+    const data = await api('POST', url, fd);
+    showAlert('saidas-alert', 'success', data.message);
+    showToast(data.message);
+    document.getElementById('saidas-de').value  = '';
+    document.getElementById('saidas-ate').value = '';
+    updateSaidasLabel();
+  } catch (err) {
+    showAlert('saidas-alert', 'error', err.message);
+    showToast(err.message, 'error');
+  } finally {
+    setLoading(false);
+    this.value = '';
+  }
+});
+
+// ── HISTÓRICO ────────────────────────────────────────
+async function loadHistorico() {
+  try {
+    const weeks = await api('GET', '/api/weeks');
+    const grid = document.getElementById('hist-grid');
+    document.getElementById('hist-count').textContent = weeks.length + ' semanas';
+
+    if (!weeks.length) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhuma semana registrada. Suba os CSVs de saídas para começar.</div>';
+      return;
+    }
+
+    grid.innerHTML = weeks.map(w => `
+      <div class="week-card" onclick="openWeekDetail('${w.week_code}')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="week-badge">${w.week_code}</div>
+            <div style="font-size:15px;font-weight:700;font-family:'Syne',sans-serif;margin-top:3px">${fmtWeek(w.week_code)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px">${w.total_portions} porções</div>
+          </div>
+          <div style="text-align:right">
+            <div class="mono" style="font-size:18px;font-weight:600;color:var(--accent)">${w.total_kg.toFixed(2)}</div>
+            <div style="font-size:11px;color:var(--muted)">kg consumidos</div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    showToast('Erro ao carregar histórico: ' + err.message, 'error');
+  }
+}
+
+async function openWeekDetail(weekCode) {
+  try {
+    const data = await api('GET', `/api/weeks/${weekCode}`);
+    document.getElementById('week-detail-title').textContent =
+      `${fmtWeek(weekCode)} — ${data.total_portions} porções · ${data.total_kg.toFixed(3)} kg`;
+
+    document.getElementById('week-detail-tbody').innerHTML =
+      data.records.map(r => `<tr><td style="font-weight:500">${r.ingredient}</td><td class="mono">${r.kg.toFixed(3)} kg</td></tr>`).join('');
+
+    const detail = document.getElementById('week-detail');
+    detail.style.display = 'block';
+    detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    showToast('Erro ao abrir semana: ' + err.message, 'error');
+  }
+}
+
+// ── RELATÓRIOS ───────────────────────────────────────
+async function initRelatorios() {
+  // Populate week picker options (the native input handles it, but let's preload all weeks)
+  // The week input handles this natively. Just load all data if no filter.
+  await loadReport();
+}
+
+async function loadReport() {
+  const weekPick = document.getElementById('rel-week-pick').value;
+
+  try {
+    let weeks;
+
+    if (weekPick) {
+      // Convert "YYYY-Www" from input (browser format: "2026-W11") to our format
+      const weekCode = weekPick; // already in "YYYY-Www" format
+      const data = await api('GET', `/api/weeks/${weekCode}`);
+      // Build a synthetic "weeks" response
+      renderRelatorio([{
+        week_code: weekCode,
+        total_portions: data.total_portions,
+        total_kg: data.total_kg,
+        records: data.records,
+      }]);
+    } else {
+      // All weeks
+      weeks = await api('GET', '/api/weeks');
+      if (!weeks.length) {
+        document.getElementById('rel-tbody').innerHTML =
+          '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Sem dados disponíveis.</td></tr>';
+        document.getElementById('rel-total-kg').textContent = '—';
+        document.getElementById('rel-porcoes').textContent = '—';
+        return;
+      }
+
+      // Aggregate across all weeks
+      const ingMap = {};
+      let totalKg = 0, totalPortions = 0;
+
+      for (const w of weeks) {
+        const wd = await api('GET', `/api/weeks/${w.week_code}`);
+        totalPortions += wd.total_portions;
+        totalKg += wd.total_kg;
+        wd.records.forEach(r => {
+          ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + r.kg;
+        });
+      }
+
+      const records = Object.entries(ingMap)
+        .map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }))
+        .sort((a, b) => b.kg - a.kg);
+
+      renderRelatorio([{ week_code: 'Todas', total_portions: totalPortions, total_kg: parseFloat(totalKg.toFixed(3)), records }]);
+    }
+  } catch (err) {
+    showToast('Erro ao carregar relatório: ' + err.message, 'error');
+  }
+}
+
+function renderRelatorio(weekDataArr) {
+  // Merge all records
+  const ingMap = {};
+  let totalPortions = 0, totalKg = 0;
+
+  weekDataArr.forEach(wd => {
+    totalPortions += wd.total_portions;
+    totalKg += wd.total_kg;
+    (wd.records ?? []).forEach(r => {
+      ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + r.kg;
+    });
+  });
+
+  const records = Object.entries(ingMap)
+    .map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }))
+    .sort((a, b) => b.kg - a.kg);
+
+  relCurrentData = records;
+
+  document.getElementById('rel-total-kg').textContent = totalKg.toFixed(3) + ' kg';
+  document.getElementById('rel-porcoes').textContent = totalPortions;
+
+  // Table
+  const tbody = document.getElementById('rel-tbody');
+  if (!records.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Sem dados para o período.</td></tr>';
+  } else {
+    tbody.innerHTML = records.map(r => {
+      const pct = totalKg > 0 ? (r.kg / totalKg * 100).toFixed(1) : '0.0';
+      return `<tr>
+        <td style="font-weight:500">${r.ingredient}</td>
+        <td class="mono">${r.kg.toFixed(3)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="prog-wrap" style="flex:1"><div class="prog-bar" style="width:${pct}%;background:var(--accent2)"></div></div>
+            <span style="font-size:12px;font-weight:600;color:var(--muted);min-width:38px;text-align:right">${pct}%</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Bar chart
+  if (barChart) barChart.destroy();
+  const top = records.slice(0, 15);
+  const ctx = document.getElementById('chart-bar').getContext('2d');
+  barChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(r => r.ingredient),
+      datasets: [{
+        label: 'kg consumidos',
+        data: top.map(r => r.kg),
+        backgroundColor: '#00c896',
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#f0f4f8' }, ticks: { callback: v => v + ' kg', font: { size: 11 } } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      }
+    }
+  });
+}
+
+function clearReport() {
+  document.getElementById('rel-week-pick').value = '';
+  loadReport();
+}
+
+function exportRelCSV() {
+  if (!relCurrentData.length) { showToast('Sem dados para exportar', 'error'); return; }
+  const total = relCurrentData.reduce((s, r) => s + r.kg, 0);
+  let csv = 'Ingrediente;kg usado;% do total\n';
+  relCurrentData.forEach(r => {
+    const pct = (r.kg / total * 100).toFixed(1);
+    csv += `${r.ingredient};${r.kg.toFixed(3)};${pct}%\n`;
+  });
+  csv += `\nTOTAL;${total.toFixed(3)};100%\n`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `relatorio-consumo-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('CSV exportado!');
+}
+
+// ── CLEAR ALL ────────────────────────────────────────
+async function confirmClearAll() {
+  if (!confirm('⚠️ Isso vai apagar TODOS os dados (fichas, semanas e consumo). Continuar?')) return;
+  if (!confirm('Última confirmação: apagar tudo definitivamente?')) return;
+
+  setLoading(true, 'Apagando todos os dados...');
+  try {
+    const data = await api('DELETE', '/api/all');
+    showToast(data.message);
+    setTimeout(() => { navigate('painel'); }, 500);
+  } catch (err) {
+    showToast('Erro ao limpar dados: ' + err.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── ARQUIVOS ENVIADOS ────────────────────────────────
+async function loadUploads() {
+  try {
+    const logs = await api('GET', '/api/upload-logs');
+    const tbody = document.getElementById('uploads-tbody');
+    document.getElementById('uploads-count').textContent = logs.length + ' arquivos';
+
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">Nenhum arquivo enviado ainda.</td></tr>';
+      return;
+    }
+
+    const typeLabel = { fichas: 'Fichas Técnicas', saidas: 'Saídas Semanais' };
+    const typeBadge = { fichas: 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe', saidas: 'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0' };
+
+    tbody.innerHTML = logs.map(log => {
+      const dt = new Date(log.created_at);
+      const dtStr = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const badge = typeBadge[log.type] || 'background:#f3f4f6;color:#374151;border:1px solid #d1d5db';
+      const label = typeLabel[log.type] || log.type;
+      return `<tr>
+        <td class="mono" style="font-size:12px">${dtStr}</td>
+        <td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;${badge}">${label}</span></td>
+        <td style="font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${log.filename}">${log.filename}</td>
+        <td class="mono" style="font-size:12px">${log.week_code || '—'}</td>
+        <td style="font-size:12px;color:var(--muted)">${log.result || '—'}</td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    showToast('Erro ao carregar arquivos: ' + err.message, 'error');
+  }
+}
+
+// ── INIT ─────────────────────────────────────────────
+navigate('painel');
+</script>
+
+</body>
+</html>
