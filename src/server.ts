@@ -355,7 +355,7 @@ app.post(
       type RecipeIngRow = { ingredient: string; grams_per_portion: number; recipes: { name: string } | null };
       const recipeIngMap = new Map<string, { ingredient: string; grams: number }[]>();
 
-      for (const row of ((allIngredients ?? []) as RecipeIngRow[])) {
+      for (const row of ((allIngredients ?? []) as unknown as RecipeIngRow[])) {
         if (!row.recipes) continue;
         const key = row.recipes.name.toLowerCase().trim();
         if (!recipeIngMap.has(key)) recipeIngMap.set(key, []);
@@ -576,7 +576,7 @@ app.get('/api/recipes/list', async (_req: Request, res: Response): Promise<void>
     type RawRow = { ingredient: string; grams_per_portion: number; recipes: { name: string } | null };
 
     // Flatten and sort by dish name then ingredient
-    const flat = (data as RawRow[] ?? [])
+    const flat = ((data ?? []) as unknown as RawRow[])
       .filter(r => r.recipes)
       .map(r => ({
         dish: r.recipes!.name,
