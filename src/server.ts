@@ -352,14 +352,16 @@ app.post(
 
       if (fetchErr) throw new Error(`Erro ao buscar receitas: ${fetchErr.message}`);
 
-      type RecipeIngRow = { ingredient: string; grams_per_portion: number; recipes: { name: string } | null };
       const recipeIngMap = new Map<string, { ingredient: string; grams: number }[]>();
 
-      for (const row of ((allIngredients ?? []) as unknown as RecipeIngRow[])) {
-        if (!row.recipes) continue;
-        const key = row.recipes.name.toLowerCase().trim();
+      for (const row of (allIngredients ?? [])) {
+        const recipesField = row.recipes as unknown as { name: string } | { name: string }[] | null;
+        if (!recipesField) continue;
+        const recipeName = Array.isArray(recipesField) ? recipesField[0]?.name : recipesField.name;
+        if (!recipeName) continue;
+        const key = recipeName.toLowerCase().trim();
         if (!recipeIngMap.has(key)) recipeIngMap.set(key, []);
-        recipeIngMap.get(key)!.push({ ingredient: row.ingredient, grams: row.grams_per_portion });
+        recipeIngMap.get(key)!.push({ ingredient: String(row.ingredient), grams: Number(row.grams_per_portion) });
       }
 
       // ── Process rows ──────────────────────────────────────────
@@ -573,16 +575,20 @@ app.get('/api/recipes/list', async (_req: Request, res: Response): Promise<void>
 
     if (error) throw new Error(error.message);
 
-    type RawRow = { ingredient: string; grams_per_portion: number; recipes: { name: string } | null };
-
     // Flatten and sort by dish name then ingredient
-    const flat = ((data ?? []) as unknown as RawRow[])
-      .filter(r => r.recipes)
-      .map(r => ({
-        dish: r.recipes!.name,
-        ingredient: r.ingredient,
-        grams_per_portion: r.grams_per_portion,
-      }))
+    const flat = (data ?? [])
+      .map(r => {
+        const recipesField = r.recipes as unknown as { name: string } | { name: string }[] | null;
+        if (!recipesField) return null;
+        const dishName = Array.isArray(recipesField) ? recipesField[0]?.name : recipesField.name;
+        if (!dishName) return null;
+        return {
+          dish: dishName,
+          ingredient: String(r.ingredient),
+          grams_per_portion: Number(r.grams_per_portion),
+        };
+      })
+      .filter((r): r is { dish: string; ingredient: string; grams_per_portion: number } => r !== null)
       .sort((a, b) => { const d = a.dish.localeCompare(b.dish); return d !== 0 ? d : a.ingredient.localeCompare(b.ingredient); });
 
     res.json(flat);
