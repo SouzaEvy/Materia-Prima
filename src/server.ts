@@ -83,7 +83,7 @@ import path from 'path';
 import fs from 'fs';
 import { parse } from 'csv-parse';
 import { createClient } from '@supabase/supabase-js';
-import { getISOWeek, getYear, parse as parseDate, isValid } from 'date-fns';
+import { parse as parseDate, isValid } from 'date-fns';
 
 // ── Environment ─────────────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
@@ -151,13 +151,29 @@ async function parseCsvBuffer(
   });
 }
 
-/** Convert dd/mm/yyyy → ISO week string "YYYY-Www" */
+/** Sunday-based week number for a Date object.
+ *  Week 1 = the week containing Jan 1 that starts on Sunday.
+ *  Returns "YYYY-Www" e.g. "2026-W12"
+ */
+function sundayWeekCode(d: Date): string {
+  // Clone and set to Sunday of this week
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay()); // d.getDay(): 0=Sun,1=Mon,...,6=Sat
+  sunday.setHours(0, 0, 0, 0);
+
+  // Week number = floor((dayOfYear of sunday) / 7) + 1
+  const jan1 = new Date(sunday.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((sunday.getTime() - jan1.getTime()) / 864e5);
+  const weekNum = Math.floor(dayOfYear / 7) + 1;
+  const year = sunday.getFullYear();
+  return `${year}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+/** Convert dd/mm/yyyy string → week code "YYYY-Www" (Sunday–Saturday) */
 function toWeekCode(dateStr: string): string | null {
   const d = parseDate(dateStr.trim(), 'dd/MM/yyyy', new Date());
   if (!isValid(d)) return null;
-  const week = String(getISOWeek(d)).padStart(2, '0');
-  const year = getYear(d); // use calendar year (adjust for ISO edge cases if needed)
-  return `${year}-W${week}`;
+  return sundayWeekCode(d);
 }
 
 /** Format week code for display: "2024-W05" → "Semana 5 de 2024" */
@@ -311,11 +327,37 @@ app.post(
         return;
       }
 
-      // Read file — try UTF-8 first, fall back to latin1 (common in Windows PDV exports)
+      // Read file — detect and handle multiple encodings:
+      // UTF-16 LE (BOM FF FE), UTF-16 BE (BOM FE FF), UTF-8 BOM (EF BB BF), latin1
       const rawBuf = fs.readFileSync(filepath);
-      let text = rawBuf.toString('latin1'); // latin1 always decodes without error
-      // Re-encode as utf8 for consistent parsing
-      const textUtf8 = Buffer.from(text, 'latin1').toString('utf8');
+
+      let textUtf8: string;
+      const b0 = rawBuf[0], b1 = rawBuf[1], b2 = rawBuf[2];
+
+      if (b0 === 0xFF && b1 === 0xFE) {
+        // UTF-16 LE with BOM (common in Windows PDV exports)
+        textUtf8 = rawBuf.slice(2).toString('utf16le');
+      } else if (b0 === 0xFE && b1 === 0xFF) {
+        // UTF-16 BE with BOM
+        const swapped = Buffer.alloc(rawBuf.length - 2);
+        for (let i = 0; i < swapped.length; i += 2) {
+          swapped[i]     = rawBuf[i + 3];
+          swapped[i + 1] = rawBuf[i + 2];
+        }
+        textUtf8 = swapped.toString('utf16le');
+      } else if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
+        // UTF-8 with BOM — strip BOM
+        textUtf8 = rawBuf.slice(3).toString('utf8');
+      } else {
+        // Try UTF-8, fall back to latin1
+        const asUtf8 = rawBuf.toString('utf8');
+        textUtf8 = asUtf8.includes('\uFFFD')
+          ? Buffer.from(rawBuf.toString('latin1'), 'latin1').toString('utf8')
+          : asUtf8;
+      }
+
+      // Strip any remaining null bytes and normalize line endings
+      textUtf8 = textUtf8.replace(/\u0000/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 
       const firstLine = textUtf8.split('\n')[0] ?? '';
       const delimiter = detectDelimiter(firstLine);
@@ -457,12 +499,7 @@ app.post(
 
 // Returns current ISO week string "YYYY-Www"
 function getISOWeekToday(): string {
-  const now   = new Date();
-  const jan4  = new Date(now.getFullYear(), 0, 4);
-  const start = new Date(jan4);
-  start.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
-  const weekNum = Math.floor((now.getTime() - start.getTime()) / (7 * 864e5)) + 1;
-  return `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  return sundayWeekCode(new Date());
 }
 
 // ── Route: GET /api/weeks ────────────────────────────────────

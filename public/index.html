@@ -785,32 +785,34 @@ function renderFichasTable(rows) {
 // ── SAÍDAS — helpers de data ─────────────────────────
 function toISODate(d) { return d.toISOString().slice(0, 10); }
 
+// Week = Sunday to Saturday. Week 1 = week containing Jan 1.
 function getISOWeekCode(date) {
-  const jan4 = new Date(date.getFullYear(), 0, 4);
-  const start = new Date(jan4);
-  start.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
-  const diff = (date - start) / 864e5;
-  const wn = Math.floor(diff / 7) + 1;
-  return `${date.getFullYear()}-W${String(wn).padStart(2,'0')}`;
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  // Roll back to Sunday of this week
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay());
+  const jan1 = new Date(sunday.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((sunday - jan1) / 864e5);
+  const wn = Math.floor(dayOfYear / 7) + 1;
+  return `${sunday.getFullYear()}-W${String(wn).padStart(2,'0')}`;
 }
 
 function setSaidasThisWeek() {
   const now = new Date();
-  const dow = (now.getDay() + 6) % 7; // Monday = 0
-  const mon = new Date(now); mon.setDate(now.getDate() - dow);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  document.getElementById('saidas-de').value  = toISODate(mon);
-  document.getElementById('saidas-ate').value = toISODate(sun);
+  const sun = new Date(now); sun.setDate(now.getDate() - now.getDay()); // Sunday
+  const sat = new Date(sun); sat.setDate(sun.getDate() + 6);            // Saturday
+  document.getElementById('saidas-de').value  = toISODate(sun);
+  document.getElementById('saidas-ate').value = toISODate(sat);
   updateSaidasLabel();
 }
 
 function setSaidasLastWeek() {
   const now = new Date();
-  const dow = (now.getDay() + 6) % 7;
-  const lastMon = new Date(now); lastMon.setDate(now.getDate() - dow - 7);
-  const lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate() + 6);
-  document.getElementById('saidas-de').value  = toISODate(lastMon);
-  document.getElementById('saidas-ate').value = toISODate(lastSun);
+  const lastSun = new Date(now); lastSun.setDate(now.getDate() - now.getDay() - 7); // last Sunday
+  const lastSat = new Date(lastSun); lastSat.setDate(lastSun.getDate() + 6);        // last Saturday
+  document.getElementById('saidas-de').value  = toISODate(lastSun);
+  document.getElementById('saidas-ate').value = toISODate(lastSat);
   updateSaidasLabel();
 }
 
