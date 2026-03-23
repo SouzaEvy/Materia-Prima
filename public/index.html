@@ -247,18 +247,13 @@
 </head>
 <body>
 
-<!-- Loading overlay -->
 <div id="loading-overlay">
   <div class="spinner"></div>
   <span id="loading-text">Carregando...</span>
 </div>
 
-<!-- Toast notification -->
 <div id="toast"></div>
 
-<!-- ===================================================
-  SIDEBAR
-=================================================== -->
 <aside id="sidebar">
   <div class="sidebar-logo">
     <div class="brand">Controle de<br>Matéria-Prima</div>
@@ -286,7 +281,6 @@
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Relatórios de Consumo
     </button>
-
     <button class="nav-btn" onclick="navigate('uploads')" data-page="uploads">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/><circle cx="10" cy="15" r="2"/><path d="M20 17v1a2 2 0 01-2 2H6"/></svg>
       Arquivos Enviados
@@ -308,12 +302,8 @@
   </div>
 </aside>
 
-<!-- ===================================================
-  MAIN
-=================================================== -->
 <div id="main">
 
-  <!-- Topbar -->
   <div class="topbar">
     <button id="menu-toggle" onclick="toggleSidebar()">
       <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -322,10 +312,8 @@
     <span class="topbar-badge" id="topbar-badge" style="display:none"></span>
   </div>
 
-  <!-- ===================== PAINEL ===================== -->
   <div class="section active" id="sec-painel" style="padding-bottom:40px">
 
-    <!-- Warning when no recipes -->
     <div id="no-recipes-warn" style="display:none;margin-bottom:20px">
       <div class="alert alert-warn">
         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -333,11 +321,10 @@
       </div>
     </div>
 
-    <!-- Stats grid -->
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:13px;margin-bottom:22px">
       <div class="stat-card">
         <div class="stat-val mono" id="dash-kg">—</div>
-        <div class="stat-lbl">kg consumidos (ano)</div>
+        <div class="stat-lbl">kg consumidos</div>
       </div>
       <div class="stat-card">
         <div class="stat-val mono" id="dash-porcoes">—</div>
@@ -353,10 +340,17 @@
       </div>
     </div>
 
-    <!-- Top 5 + Last weeks -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
       <div class="card">
-        <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:16px">Top 5 Ingredientes (ano atual)</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+          <h3 style="font-family:'Syne',sans-serif; font-size:14px; font-weight:700">Top 5 Ingredientes</h3>
+          <select id="dash-filter" onchange="loadDashboard()" style="font-size:12px; border-radius:4px; border:1px solid var(--border); padding:2px 5px; outline:none; cursor:pointer">
+            <option value="1">Este Mês</option>
+            <option value="3">3 Meses</option>
+            <option value="6">6 Meses</option>
+            <option value="12" selected>Este Ano</option>
+          </select>
+        </div>
         <div id="dash-top5"><span style="color:var(--muted);font-size:13px">Sem dados ainda.</span></div>
       </div>
       <div class="card">
@@ -366,7 +360,6 @@
     </div>
   </div>
 
-  <!-- ===================== FICHAS ===================== -->
   <div class="section" id="sec-fichas">
     <div id="fichas-alert" style="margin-bottom:16px"></div>
 
@@ -400,20 +393,18 @@
     <div class="card" style="padding:0;overflow:hidden">
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>Prato</th><th>Ingrediente</th><th>Gramas / Porção</th></tr></thead>
+          <thead><tr><th>Prato</th><th>Ação</th><th>Ingrediente</th><th>Gramas / Porção</th></tr></thead>
           <tbody id="fichas-tbody">
-            <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr>
+            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- ===================== SAÍDAS ===================== -->
   <div class="section" id="sec-saidas">
     <div id="saidas-alert" style="margin-bottom:16px"></div>
 
-    <!-- Date range selector -->
     <div class="card" style="margin-bottom:18px">
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">Período do relatório</div>
       <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
@@ -458,7 +449,6 @@
     </div>
   </div>
 
-  <!-- ===================== HISTÓRICO ===================== -->
   <div class="section" id="sec-historico">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
       <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Histórico de Semanas</h2>
@@ -469,7 +459,6 @@
       <div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhuma semana registrada ainda.</div>
     </div>
 
-    <!-- Week detail -->
     <div id="week-detail" class="card" style="display:none;margin-top:20px;padding:0;overflow:hidden">
       <div style="padding:15px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
         <h3 id="week-detail-title" style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700"></h3>
@@ -484,7 +473,6 @@
     </div>
   </div>
 
-  <!-- ===================== ARQUIVOS ENVIADOS ===================== -->
   <div class="section" id="sec-uploads">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
       <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Arquivos Enviados</h2>
@@ -496,6 +484,7 @@
         <table>
           <thead>
             <tr>
+              <th>Ação</th>
               <th>Data/Hora</th>
               <th>Tipo</th>
               <th>Arquivo</th>
@@ -504,17 +493,15 @@
             </tr>
           </thead>
           <tbody id="uploads-tbody">
-            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">Nenhum arquivo enviado ainda.</td></tr>
+            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhum arquivo enviado ainda.</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- ===================== RELATÓRIOS ===================== -->
   <div class="section" id="sec-relatorios">
 
-    <!-- Filter bar -->
     <div class="card" style="margin-bottom:18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
       <div>
         <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px">Semana ISO</label>
@@ -530,7 +517,6 @@
       </div>
     </div>
 
-    <!-- Summary -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
       <div class="stat-card">
         <div class="stat-val mono" id="rel-total-kg">—</div>
@@ -542,7 +528,6 @@
       </div>
     </div>
 
-    <!-- Chart -->
     <div class="card" style="margin-bottom:18px">
       <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">kg por Ingrediente</h3>
       <div class="chart-wrap">
@@ -550,7 +535,6 @@
       </div>
     </div>
 
-    <!-- Table -->
     <div class="card" style="padding:0;overflow:hidden">
       <div style="overflow-x:auto">
         <table>
@@ -563,13 +547,9 @@
     </div>
   </div>
 
-</div><!-- end #main -->
+</div>
 
-<!-- ===================================================
-  JAVASCRIPT
-=================================================== -->
 <script>
-// ── State ────────────────────────────────────────────
 let currentPage = 'painel';
 let barChart = null;
 let relCurrentData = [];
@@ -583,7 +563,6 @@ const pageTitles = {
   uploads:   'Arquivos Enviados',
 };
 
-// ── Navigation ───────────────────────────────────────
 function navigate(page) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -605,7 +584,6 @@ function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
 }
 
-// ── API helpers ──────────────────────────────────────
 async function api(method, path, body) {
   const opts = { method, headers: {} };
   if (body instanceof FormData) {
@@ -620,7 +598,6 @@ async function api(method, path, body) {
   return data;
 }
 
-// ── Toast ────────────────────────────────────────────
 let toastTimer;
 function showToast(msg, type = 'success') {
   const t = document.getElementById('toast');
@@ -630,14 +607,12 @@ function showToast(msg, type = 'success') {
   toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
 }
 
-// ── Loading ──────────────────────────────────────────
 function setLoading(show, text = 'Processando...') {
   const overlay = document.getElementById('loading-overlay');
   overlay.classList.toggle('show', show);
   document.getElementById('loading-text').textContent = text;
 }
 
-// ── Alert helpers ────────────────────────────────────
 function showAlert(elId, type, html) {
   const icons = {
     success: '<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
@@ -650,27 +625,53 @@ function showAlert(elId, type, html) {
   setTimeout(() => { if (el) el.innerHTML = ''; }, 7000);
 }
 
-// ── Format week: "2026-W11" → "Semana 11 de 2026" ───
 function fmtWeek(code) {
+  if(!code) return '';
   const [yr, wk] = code.split('-W');
   return `Semana ${parseInt(wk)} de ${yr}`;
 }
 
+// ── DELETE ACTIONS ───────────────────────────────────
+async function deleteRecipe(name) {
+  if (!confirm(`Deseja realmente excluir todas as fichas técnicas de "${name}"?`)) return;
+  try {
+    await api('DELETE', `/api/recipes/${encodeURIComponent(name)}`);
+    showToast(`Ficha "${name}" excluída com sucesso!`);
+    loadFichas();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function deleteWeek(weekCode) {
+  if (!confirm(`Deseja excluir definitivamente todos os dados da ${fmtWeek(weekCode)}?`)) return;
+  try {
+    await api('DELETE', `/api/weeks/${weekCode}`);
+    showToast(`Semana excluída!`);
+    loadHistorico();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function deleteUpload(id) {
+  if (!confirm(`Excluir este registro do histórico de uploads?`)) return;
+  try {
+    await api('DELETE', `/api/uploads/${id}`);
+    showToast(`Registro excluído!`);
+    loadUploads();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
 // ── DASHBOARD ────────────────────────────────────────
 async function loadDashboard() {
+  const months = document.getElementById('dash-filter')?.value || 12;
   try {
-    const data = await api('GET', '/api/dashboard');
+    const data = await api('GET', `/api/dashboard?months=${months}`);
 
-    document.getElementById('dash-kg').textContent = data.total_kg_this_year.toFixed(2);
-    document.getElementById('dash-porcoes').textContent = data.total_portions_this_year;
+    document.getElementById('dash-kg').textContent = data.total_kg.toFixed(2);
+    document.getElementById('dash-porcoes').textContent = data.total_portions;
     document.getElementById('dash-semanas').textContent = data.total_weeks;
     document.getElementById('dash-fichas').textContent = data.recipe_count;
 
-    // No-recipes warning
-    document.getElementById('no-recipes-warn').style.display =
-      data.recipe_count === 0 ? 'block' : 'none';
+    document.getElementById('no-recipes-warn').style.display = data.recipe_count === 0 ? 'block' : 'none';
 
-    // Top 5
     const top5El = document.getElementById('dash-top5');
     if (!data.top5_ingredients.length) {
       top5El.innerHTML = '<span style="color:var(--muted);font-size:13px">Sem dados ainda.</span>';
@@ -687,7 +688,6 @@ async function loadDashboard() {
       `).join('');
     }
 
-    // Recent weeks
     const recentEl = document.getElementById('dash-recent');
     if (!data.recent_weeks.length) {
       recentEl.innerHTML = '<span style="color:var(--muted);font-size:13px">Nenhuma semana registrada.</span>';
@@ -709,10 +709,8 @@ async function loadDashboard() {
 document.getElementById('fichas-file').addEventListener('change', async function () {
   if (!this.files[0]) return;
   setLoading(true, 'Processando fichas técnicas...');
-
   const fd = new FormData();
   fd.append('file', this.files[0]);
-
   try {
     const data = await api('POST', '/api/recipes/upload', fd);
     showAlert('fichas-alert', 'success', data.message);
@@ -721,63 +719,41 @@ document.getElementById('fichas-file').addEventListener('change', async function
   } catch (err) {
     showAlert('fichas-alert', 'error', err.message);
     showToast(err.message, 'error');
-  } finally {
-    setLoading(false);
-    this.value = '';
-  }
+  } finally { setLoading(false); this.value = ''; }
 });
 
 async function loadFichas() {
   try {
-    // Fetch recipe_ingredients via a workaround – we call /api/recipes and build the table
-    const res = await fetch('/api/recipes');
-    const recipes = await res.json();
-
-    // Fetch all recipe_ingredients — we'll do a separate call to the Supabase-backed route
-    // Since we only expose /api/recipes listing dishes, we'll use dashboard's recipe_count
-    // For the full ingredient table, let's call GET /api/weeks/template (doesn't exist) –
-    // Instead we expose recipe details through the fichas route itself
-    // We need to add a /api/recipes/all endpoint or re-use something. Let's fetch direct:
-
-    // Call the full recipe table endpoint (we'll use a simple trick: fetch the fichas from
-    // our existing route pattern — we expose a combined endpoint below)
     const fullRes = await fetch('/api/recipes/list');
     if (fullRes.ok) {
       const rows = await fullRes.json();
       renderFichasTable(rows);
-    } else {
-      // Fallback: just show recipe names count
-      document.getElementById('fichas-count').textContent = recipes.length + ' pratos';
-      document.getElementById('fichas-tbody').innerHTML =
-        `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:20px">${recipes.length} prato(s) cadastrado(s). Faça upload para ver detalhes.</td></tr>`;
     }
-  } catch (err) {
-    console.error(err);
-  }
+  } catch (err) { console.error(err); }
 }
 
 function renderFichasTable(rows) {
   const tbody = document.getElementById('fichas-tbody');
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr>';
     document.getElementById('fichas-count').textContent = '0';
     return;
   }
-
   let html = '';
   let lastDish = null;
   let dishCount = 0;
   rows.forEach(r => {
     const isNew = r.dish !== lastDish;
     if (isNew) dishCount++;
+    const actionBtn = isNew ? `<button onclick="deleteRecipe('${r.dish}')" title="Excluir Prato" style="background:none;border:none;cursor:pointer;color:var(--danger)">🗑️</button>` : '';
     html += `<tr>
       <td style="font-weight:${isNew ? 600 : 400};color:${isNew ? 'var(--ink)' : 'var(--muted)'}">${isNew ? r.dish : ''}</td>
+      <td style="width:50px;text-align:center">${actionBtn}</td>
       <td>${r.ingredient}</td>
       <td class="mono">${r.grams_per_portion}g</td>
     </tr>`;
     lastDish = r.dish;
   });
-
   tbody.innerHTML = html;
   document.getElementById('fichas-count').textContent = dishCount + ' pratos, ' + rows.length + ' ingredientes';
 }
@@ -785,11 +761,9 @@ function renderFichasTable(rows) {
 // ── SAÍDAS — helpers de data ─────────────────────────
 function toISODate(d) { return d.toISOString().slice(0, 10); }
 
-// Week = Sunday to Saturday. Week 1 = week containing Jan 1.
-function getISOWeekCode(date) {
+function getWeekCodeSunday(date) {
   const d = new Date(date);
   d.setHours(0,0,0,0);
-  // Roll back to Sunday of this week
   const sunday = new Date(d);
   sunday.setDate(d.getDate() - d.getDay());
   const jan1 = new Date(sunday.getFullYear(), 0, 1);
@@ -800,8 +774,8 @@ function getISOWeekCode(date) {
 
 function setSaidasThisWeek() {
   const now = new Date();
-  const sun = new Date(now); sun.setDate(now.getDate() - now.getDay()); // Sunday
-  const sat = new Date(sun); sat.setDate(sun.getDate() + 6);            // Saturday
+  const sun = new Date(now); sun.setDate(now.getDate() - now.getDay());
+  const sat = new Date(sun); sat.setDate(sun.getDate() + 6);
   document.getElementById('saidas-de').value  = toISODate(sun);
   document.getElementById('saidas-ate').value = toISODate(sat);
   updateSaidasLabel();
@@ -809,8 +783,8 @@ function setSaidasThisWeek() {
 
 function setSaidasLastWeek() {
   const now = new Date();
-  const lastSun = new Date(now); lastSun.setDate(now.getDate() - now.getDay() - 7); // last Sunday
-  const lastSat = new Date(lastSun); lastSat.setDate(lastSun.getDate() + 6);        // last Saturday
+  const lastSun = new Date(now); lastSun.setDate(now.getDate() - now.getDay() - 7);
+  const lastSat = new Date(lastSun); lastSat.setDate(lastSun.getDate() + 6);
   document.getElementById('saidas-de').value  = toISODate(lastSun);
   document.getElementById('saidas-ate').value = toISODate(lastSat);
   updateSaidasLabel();
@@ -832,13 +806,13 @@ function updateSaidasLabel() {
   if (!de || !ate) { lbl.textContent = 'Se não selecionar, será usada a semana atual automaticamente.'; return; }
   const fmtDe  = de.split('-').reverse().join('/');
   const fmtAte = ate.split('-').reverse().join('/');
-  // Calculate week codes covered
+  
   const dStart = new Date(de + 'T12:00:00');
   const dEnd   = new Date(ate + 'T12:00:00');
   const weeks  = new Set();
   const cur    = new Date(dStart);
-  while (cur <= dEnd) { weeks.add(getISOWeekCode(cur)); cur.setDate(cur.getDate() + 7); }
-  weeks.add(getISOWeekCode(dEnd));
+  while (cur <= dEnd) { weeks.add(getWeekCodeSunday(cur)); cur.setDate(cur.getDate() + 7); }
+  weeks.add(getWeekCodeSunday(dEnd));
   const weekList = [...weeks].sort().join(', ');
   lbl.innerHTML = `<strong>${fmtDe} até ${fmtAte}</strong> — semana(s) ISO: <span class="mono">${weekList}</span>`;
 }
@@ -846,33 +820,21 @@ function updateSaidasLabel() {
 document.getElementById('saidas-de').addEventListener('change', updateSaidasLabel);
 document.getElementById('saidas-ate').addEventListener('change', updateSaidasLabel);
 
-// ── SAÍDAS — upload ───────────────────────────────────
 document.getElementById('saidas-file').addEventListener('change', async function () {
   if (!this.files[0]) return;
-
   const de  = document.getElementById('saidas-de').value;
   const ate = document.getElementById('saidas-ate').value;
-
-  // Derive week codes from the selected date range
-  // If range spans multiple weeks, we use the week of the START date
-  // (user can upload once per week; for multi-week ranges the backend uses start week)
+  
   let weekCode = '';
-  if (de) {
-    weekCode = getISOWeekCode(new Date(de + 'T12:00:00'));
-  }
-
-  // If range covers multiple weeks, warn user
+  if (de) weekCode = getWeekCodeSunday(new Date(de + 'T12:00:00'));
   if (de && ate) {
     const dStart = new Date(de + 'T12:00:00');
     const dEnd   = new Date(ate + 'T12:00:00');
     const weeks  = new Set();
     const cur    = new Date(dStart);
-    while (cur <= dEnd) { weeks.add(getISOWeekCode(cur)); cur.setDate(cur.getDate() + 7); }
-    weeks.add(getISOWeekCode(dEnd));
-    if (weeks.size > 1) {
-      // Upload one per week — for now use start week and inform user
-      weekCode = [...weeks].sort()[0];
-    }
+    while (cur <= dEnd) { weeks.add(getWeekCodeSunday(cur)); cur.setDate(cur.getDate() + 7); }
+    weeks.add(getWeekCodeSunday(dEnd));
+    if (weeks.size > 1) weekCode = [...weeks].sort()[0];
   }
 
   setLoading(true, 'Processando relatório de vendas...');
@@ -891,10 +853,7 @@ document.getElementById('saidas-file').addEventListener('change', async function
   } catch (err) {
     showAlert('saidas-alert', 'error', err.message);
     showToast(err.message, 'error');
-  } finally {
-    setLoading(false);
-    this.value = '';
-  }
+  } finally { setLoading(false); this.value = ''; }
 });
 
 // ── HISTÓRICO ────────────────────────────────────────
@@ -910,8 +869,9 @@ async function loadHistorico() {
     }
 
     grid.innerHTML = weeks.map(w => `
-      <div class="week-card" onclick="openWeekDetail('${w.week_code}')">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div class="week-card" style="position:relative">
+        <button onclick="deleteWeek('${w.week_code}')" title="Excluir Semana" style="position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;color:var(--danger)">🗑️</button>
+        <div onclick="openWeekDetail('${w.week_code}')" style="display:flex;justify-content:space-between;align-items:flex-start;padding-right:30px">
           <div>
             <div class="week-badge">${w.week_code}</div>
             <div style="font-size:15px;font-weight:700;font-family:'Syne',sans-serif;margin-top:3px">${fmtWeek(w.week_code)}</div>
@@ -924,110 +884,67 @@ async function loadHistorico() {
         </div>
       </div>
     `).join('');
-  } catch (err) {
-    showToast('Erro ao carregar histórico: ' + err.message, 'error');
-  }
+  } catch (err) { showToast('Erro ao carregar histórico: ' + err.message, 'error'); }
 }
 
 async function openWeekDetail(weekCode) {
   try {
     const data = await api('GET', `/api/weeks/${weekCode}`);
-    document.getElementById('week-detail-title').textContent =
-      `${fmtWeek(weekCode)} — ${data.total_portions} porções · ${data.total_kg.toFixed(3)} kg`;
-
-    document.getElementById('week-detail-tbody').innerHTML =
-      data.records.map(r => `<tr><td style="font-weight:500">${r.ingredient}</td><td class="mono">${r.kg.toFixed(3)} kg</td></tr>`).join('');
-
+    document.getElementById('week-detail-title').textContent = `${fmtWeek(weekCode)} — ${data.total_portions} porções · ${data.total_kg.toFixed(3)} kg`;
+    document.getElementById('week-detail-tbody').innerHTML = data.records.map(r => `<tr><td style="font-weight:500">${r.ingredient}</td><td class="mono">${r.kg.toFixed(3)} kg</td></tr>`).join('');
     const detail = document.getElementById('week-detail');
     detail.style.display = 'block';
     detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } catch (err) {
-    showToast('Erro ao abrir semana: ' + err.message, 'error');
-  }
+  } catch (err) { showToast('Erro ao abrir semana: ' + err.message, 'error'); }
 }
 
 // ── RELATÓRIOS ───────────────────────────────────────
-async function initRelatorios() {
-  // Populate week picker options (the native input handles it, but let's preload all weeks)
-  // The week input handles this natively. Just load all data if no filter.
-  await loadReport();
-}
+async function initRelatorios() { await loadReport(); }
 
 async function loadReport() {
   const weekPick = document.getElementById('rel-week-pick').value;
-
   try {
     let weeks;
-
     if (weekPick) {
-      // Convert "YYYY-Www" from input (browser format: "2026-W11") to our format
-      const weekCode = weekPick; // already in "YYYY-Www" format
-      const data = await api('GET', `/api/weeks/${weekCode}`);
-      // Build a synthetic "weeks" response
-      renderRelatorio([{
-        week_code: weekCode,
-        total_portions: data.total_portions,
-        total_kg: data.total_kg,
-        records: data.records,
-      }]);
+      const data = await api('GET', `/api/weeks/${weekPick}`);
+      renderRelatorio([{ week_code: weekPick, total_portions: data.total_portions, total_kg: data.total_kg, records: data.records }]);
     } else {
-      // All weeks
       weeks = await api('GET', '/api/weeks');
       if (!weeks.length) {
-        document.getElementById('rel-tbody').innerHTML =
-          '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Sem dados disponíveis.</td></tr>';
+        document.getElementById('rel-tbody').innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Sem dados disponíveis.</td></tr>';
         document.getElementById('rel-total-kg').textContent = '—';
         document.getElementById('rel-porcoes').textContent = '—';
         return;
       }
-
-      // Aggregate across all weeks
       const ingMap = {};
       let totalKg = 0, totalPortions = 0;
-
       for (const w of weeks) {
         const wd = await api('GET', `/api/weeks/${w.week_code}`);
         totalPortions += wd.total_portions;
         totalKg += wd.total_kg;
-        wd.records.forEach(r => {
-          ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + r.kg;
-        });
+        wd.records.forEach(r => { ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + r.kg; });
       }
-
-      const records = Object.entries(ingMap)
-        .map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }))
-        .sort((a, b) => b.kg - a.kg);
-
+      const records = Object.entries(ingMap).map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) })).sort((a, b) => b.kg - a.kg);
       renderRelatorio([{ week_code: 'Todas', total_portions: totalPortions, total_kg: parseFloat(totalKg.toFixed(3)), records }]);
     }
-  } catch (err) {
-    showToast('Erro ao carregar relatório: ' + err.message, 'error');
-  }
+  } catch (err) { showToast('Erro ao carregar relatório: ' + err.message, 'error'); }
 }
 
 function renderRelatorio(weekDataArr) {
-  // Merge all records
   const ingMap = {};
   let totalPortions = 0, totalKg = 0;
-
   weekDataArr.forEach(wd => {
     totalPortions += wd.total_portions;
     totalKg += wd.total_kg;
-    (wd.records ?? []).forEach(r => {
-      ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + r.kg;
-    });
+    (wd.records ?? []).forEach(r => { ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + r.kg; });
   });
 
-  const records = Object.entries(ingMap)
-    .map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }))
-    .sort((a, b) => b.kg - a.kg);
-
+  const records = Object.entries(ingMap).map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) })).sort((a, b) => b.kg - a.kg);
   relCurrentData = records;
 
   document.getElementById('rel-total-kg').textContent = totalKg.toFixed(3) + ' kg';
   document.getElementById('rel-porcoes').textContent = totalPortions;
 
-  // Table
   const tbody = document.getElementById('rel-tbody');
   if (!records.length) {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Sem dados para o período.</td></tr>';
@@ -1047,7 +964,6 @@ function renderRelatorio(weekDataArr) {
     }).join('');
   }
 
-  // Bar chart
   if (barChart) barChart.destroy();
   const top = records.slice(0, 15);
   const ctx = document.getElementById('chart-bar').getContext('2d');
@@ -1055,18 +971,10 @@ function renderRelatorio(weekDataArr) {
     type: 'bar',
     data: {
       labels: top.map(r => r.ingredient),
-      datasets: [{
-        label: 'kg consumidos',
-        data: top.map(r => r.kg),
-        backgroundColor: '#00c896',
-        borderRadius: 6,
-        borderSkipped: false,
-      }]
+      datasets: [{ label: 'kg consumidos', data: top.map(r => r.kg), backgroundColor: '#00c896', borderRadius: 6 }]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
       scales: {
         y: { beginAtZero: true, grid: { color: '#f0f4f8' }, ticks: { callback: v => v + ' kg', font: { size: 11 } } },
         x: { grid: { display: false }, ticks: { font: { size: 11 } } },
@@ -1101,17 +1009,12 @@ function exportRelCSV() {
 async function confirmClearAll() {
   if (!confirm('⚠️ Isso vai apagar TODOS os dados (fichas, semanas e consumo). Continuar?')) return;
   if (!confirm('Última confirmação: apagar tudo definitivamente?')) return;
-
   setLoading(true, 'Apagando todos os dados...');
   try {
     const data = await api('DELETE', '/api/all');
     showToast(data.message);
     setTimeout(() => { navigate('painel'); }, 500);
-  } catch (err) {
-    showToast('Erro ao limpar dados: ' + err.message, 'error');
-  } finally {
-    setLoading(false);
-  }
+  } catch (err) { showToast('Erro ao limpar dados: ' + err.message, 'error'); } finally { setLoading(false); }
 }
 
 // ── ARQUIVOS ENVIADOS ────────────────────────────────
@@ -1122,12 +1025,12 @@ async function loadUploads() {
     document.getElementById('uploads-count').textContent = logs.length + ' arquivos';
 
     if (!logs.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">Nenhum arquivo enviado ainda.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhum arquivo enviado ainda.</td></tr>';
       return;
     }
 
-    const typeLabel = { fichas: 'Fichas Técnicas', saidas: 'Saídas Semanais' };
-    const typeBadge = { fichas: 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe', saidas: 'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0' };
+    const typeLabel = { fichas: 'Fichas Técnicas', saidas: 'Saídas Semanais', agile_email: 'Integração Agile' };
+    const typeBadge = { fichas: 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe', saidas: 'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0', agile_email: 'background:#fef2f2;color:#991b1b;border:1px solid #fecaca' };
 
     tbody.innerHTML = logs.map(log => {
       const dt = new Date(log.created_at);
@@ -1135,6 +1038,7 @@ async function loadUploads() {
       const badge = typeBadge[log.type] || 'background:#f3f4f6;color:#374151;border:1px solid #d1d5db';
       const label = typeLabel[log.type] || log.type;
       return `<tr>
+        <td style="width:50px;text-align:center"><button onclick="deleteUpload('${log.id}')" title="Excluir Registro" style="background:none;border:none;cursor:pointer;color:var(--danger)">🗑️</button></td>
         <td class="mono" style="font-size:12px">${dtStr}</td>
         <td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;${badge}">${label}</span></td>
         <td style="font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${log.filename}">${log.filename}</td>
@@ -1142,9 +1046,7 @@ async function loadUploads() {
         <td style="font-size:12px;color:var(--muted)">${log.result || '—'}</td>
       </tr>`;
     }).join('');
-  } catch (err) {
-    showToast('Erro ao carregar arquivos: ' + err.message, 'error');
-  }
+  } catch (err) { showToast('Erro ao carregar arquivos: ' + err.message, 'error'); }
 }
 
 // ── INIT ─────────────────────────────────────────────

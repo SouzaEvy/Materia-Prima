@@ -2,79 +2,87 @@
  * controle-materia-prima — Backend (Express + TypeScript + Supabase)
  *
  * ============================================================
- *  SETUP INSTRUCTIONS
+ * SETUP INSTRUCTIONS
  * ============================================================
  *
  * 1. CREATE FREE SUPABASE PROJECT
- *    → https://app.supabase.com  → New project
+ * → https://app.supabase.com  → New project
  *
  * 2. CREATE TABLES — paste this SQL in the Supabase SQL Editor:
  *
- *    -- Enable UUID extension (usually already on)
- *    create extension if not exists "uuid-ossp";
+ * -- Enable UUID extension (usually already on)
+ * create extension if not exists "uuid-ossp";
  *
- *    create table if not exists recipes (
- *      id           uuid primary key default uuid_generate_v4(),
- *      name         text unique not null,
- *      created_at   timestamptz default now()
- *    );
+ * create table if not exists recipes (
+ * id           uuid primary key default uuid_generate_v4(),
+ * name         text unique not null,
+ * created_at   timestamptz default now()
+ * );
  *
- *    create table if not exists recipe_ingredients (
- *      id                uuid primary key default uuid_generate_v4(),
- *      recipe_id         uuid references recipes(id) on delete cascade,
- *      ingredient        text not null,
- *      grams_per_portion integer not null,
- *      created_at        timestamptz default now()
- *    );
+ * create table if not exists recipe_ingredients (
+ * id                uuid primary key default uuid_generate_v4(),
+ * recipe_id         uuid references recipes(id) on delete cascade,
+ * ingredient        text not null,
+ * grams_per_portion integer not null,
+ * created_at        timestamptz default now()
+ * );
  *
- *    create table if not exists weeks (
- *      id             uuid primary key default uuid_generate_v4(),
- *      week_code      text unique not null,
- *      total_portions integer not null default 0,
- *      created_at     timestamptz default now()
- *    );
+ * create table if not exists weeks (
+ * id             uuid primary key default uuid_generate_v4(),
+ * week_code      text unique not null,
+ * total_portions integer not null default 0,
+ * created_at     timestamptz default now()
+ * );
  *
- *    create table if not exists consumption_records (
- *      id          uuid primary key default uuid_generate_v4(),
- *      week_id     uuid references weeks(id) on delete cascade,
- *      ingredient  text not null,
- *      kg          numeric not null,
- *      created_at  timestamptz default now()
- *    );
+ * create table if not exists consumption_records (
+ * id          uuid primary key default uuid_generate_v4(),
+ * week_id     uuid references weeks(id) on delete cascade,
+ * ingredient  text not null,
+ * kg          numeric not null,
+ * created_at  timestamptz default now()
+ * );
  *
- *    -- RLS: disable for service_role (backend-only tool, no public access)
- *    alter table recipes              enable row level security;
- *    alter table recipe_ingredients   enable row level security;
- *    alter table weeks                enable row level security;
- *    alter table consumption_records  enable row level security;
+ * create table if not exists upload_logs (
+ * id          uuid primary key default uuid_generate_v4(),
+ * type        text not null,
+ * filename    text not null,
+ * week_code   text,
+ * result      text,
+ * created_at  timestamptz default now()
+ * );
  *
- *    -- Allow all via service_role key (used only in backend)
- *    create policy "service_role full access recipes"
- *      on recipes for all using (true) with check (true);
- *    create policy "service_role full access recipe_ingredients"
- *      on recipe_ingredients for all using (true) with check (true);
- *    create policy "service_role full access weeks"
- *      on weeks for all using (true) with check (true);
- *    create policy "service_role full access consumption_records"
- *      on consumption_records for all using (true) with check (true);
+ * -- RLS: disable for service_role (backend-only tool, no public access)
+ * alter table recipes              enable row level security;
+ * alter table recipe_ingredients   enable row level security;
+ * alter table weeks                enable row level security;
+ * alter table consumption_records  enable row level security;
+ * alter table upload_logs          enable row level security;
+ *
+ * -- Allow all via service_role key (used only in backend)
+ * create policy "service_role full access recipes" on recipes for all using (true) with check (true);
+ * create policy "service_role full access recipe_ingredients" on recipe_ingredients for all using (true) with check (true);
+ * create policy "service_role full access weeks" on weeks for all using (true) with check (true);
+ * create policy "service_role full access consumption_records" on consumption_records for all using (true) with check (true);
+ * create policy "service_role full access upload_logs" on upload_logs for all using (true) with check (true);
  *
  * 3. GET KEYS
- *    → Supabase Dashboard → Settings → API
- *    → Copy "Project URL" and "service_role" secret key
+ * → Supabase Dashboard → Settings → API
+ * → Copy "Project URL" and "service_role" secret key
  *
  * 4. CREATE .env FILE in project root:
- *    SUPABASE_URL=https://your-project-ref.supabase.co
- *    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
- *    PORT=3000
+ * SUPABASE_URL=https://your-project-ref.supabase.co
+ * SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+ * PORT=3000
  *
  * 5. INSTALL & RUN:
- *    npm install
- *    npm run dev
- *    → open http://localhost:3000
+ * npm install
+ * npm run dev
+ * → open http://localhost:3000
  *
  * ============================================================
  */
 
+import cheerio from 'cheerio';
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
@@ -103,8 +111,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ── Express setup ────────────────────────────────────────────
 const app = express();
 app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// Limite aumentado para aceitar emails HTML grandes do Zapier
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // ── Multer (temp disk storage in /uploads) ───────────────────
 const upload = multer({
@@ -152,16 +161,14 @@ async function parseCsvBuffer(
 }
 
 /** Sunday-based week number for a Date object.
- *  Week 1 = the week containing Jan 1 that starts on Sunday.
- *  Returns "YYYY-Www" e.g. "2026-W12"
+ * Week 1 = the week containing Jan 1 that starts on Sunday.
+ * Returns "YYYY-Www" e.g. "2026-W12"
  */
 function sundayWeekCode(d: Date): string {
-  // Clone and set to Sunday of this week
   const sunday = new Date(d);
   sunday.setDate(d.getDate() - d.getDay()); // d.getDay(): 0=Sun,1=Mon,...,6=Sat
   sunday.setHours(0, 0, 0, 0);
 
-  // Week number = floor((dayOfYear of sunday) / 7) + 1
   const jan1 = new Date(sunday.getFullYear(), 0, 1);
   const dayOfYear = Math.floor((sunday.getTime() - jan1.getTime()) / 864e5);
   const weekNum = Math.floor(dayOfYear / 7) + 1;
@@ -169,15 +176,10 @@ function sundayWeekCode(d: Date): string {
   return `${year}-W${String(weekNum).padStart(2, '0')}`;
 }
 
-/** Convert dd/mm/yyyy string → week code "YYYY-Www" (Sunday–Saturday) */
-function toWeekCode(dateStr: string): string | null {
-  const d = parseDate(dateStr.trim(), 'dd/MM/yyyy', new Date());
-  if (!isValid(d)) return null;
-  return sundayWeekCode(d);
+// Returns current Sunday-based week string "YYYY-Www"
+function getWeekToday(): string {
+  return sundayWeekCode(new Date());
 }
-
-/** Format week code for display: "2024-W05" → "Semana 5 de 2024" */
-// Used only by frontend but defined here for consistency
 
 // ── Route: POST /api/recipes/upload ─────────────────────────
 app.post(
@@ -202,14 +204,13 @@ app.post(
         return;
       }
 
-      // Detect if first row is a header (non-numeric third column)
+      // Detect if first row is a header
       let dataRows = rows;
       const firstDataRow = rows[0];
       if (firstDataRow && isNaN(Number(firstDataRow[2]))) {
-        dataRows = rows.slice(1); // skip header
+        dataRows = rows.slice(1);
       }
 
-      // Group by dish name
       const dishMap = new Map<string, { ingredient: string; grams: number }[]>();
 
       for (const row of dataRows) {
@@ -235,7 +236,6 @@ app.post(
       let totalIngredients = 0;
 
       for (const [dishName, ingredients] of dishMap) {
-        // Upsert recipe
         const { data: recipe, error: recipeErr } = await supabase
           .from('recipes')
           .upsert({ name: dishName }, { onConflict: 'name' })
@@ -246,32 +246,22 @@ app.post(
           throw new Error(`Erro ao salvar prato "${dishName}": ${recipeErr?.message}`);
         }
 
-        // Delete old ingredients for this recipe
-        await supabase
-          .from('recipe_ingredients')
-          .delete()
-          .eq('recipe_id', recipe.id);
+        await supabase.from('recipe_ingredients').delete().eq('recipe_id', recipe.id);
 
-        // Insert new ingredients
         const ingredientRows = ingredients.map(i => ({
           recipe_id: recipe.id,
           ingredient: i.ingredient,
           grams_per_portion: i.grams,
         }));
 
-        const { error: ingErr } = await supabase
-          .from('recipe_ingredients')
-          .insert(ingredientRows);
+        const { error: ingErr } = await supabase.from('recipe_ingredients').insert(ingredientRows);
 
-        if (ingErr) {
-          throw new Error(`Erro ao salvar ingredientes de "${dishName}": ${ingErr.message}`);
-        }
+        if (ingErr) throw new Error(`Erro ao salvar ingredientes de "${dishName}": ${ingErr.message}`);
 
         upsertedDishes++;
         totalIngredients += ingredients.length;
       }
 
-      // Log the upload
       try {
         await supabase.from('upload_logs').insert({
           type: 'fichas',
@@ -279,30 +269,22 @@ app.post(
           week_code: null,
           result: `${upsertedDishes} prato(s), ${totalIngredients} ingrediente(s)`,
         });
-      } catch { /* log não-bloqueante */ }
+      } catch { /* ignore */ }
 
       res.json({
         success: true,
         message: `✅ ${upsertedDishes} prato(s) e ${totalIngredients} ingrediente(s) salvos com sucesso!`,
-        dishes: upsertedDishes,
-        ingredients: totalIngredients,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido';
-      res.status(500).json({ error: `Erro ao processar fichas técnicas: ${message}` });
+      res.status(500).json({ error: `Erro ao processar fichas: ${message}` });
     } finally {
       cleanFile(filepath);
     }
   }
 );
 
-// ── Route: POST /api/weeks/upload ────────────────────────────
-// Accepts the PDV report format directly — no editing needed:
-//   categoria;grupo;codigo;descricao;qtd;vl_tot
-// The week is determined by the upload date (?weekCode=YYYY-Www query param,
-// or auto-calculated from today if omitted).
-// Only rows whose "descricao" exactly matches a registered recipe are processed.
-// Everything else (drinks, desserts, entries, etc.) is silently skipped.
+// ── Route: POST /api/weeks/upload (CSV) ────────────────────────────
 app.post(
   '/api/weeks/upload',
   upload.single('file'),
@@ -315,48 +297,32 @@ app.post(
     const filepath = req.file.path;
 
     try {
-      // Check if recipes exist
-      const { count: recipeCount } = await supabase
-        .from('recipes')
-        .select('id', { count: 'exact', head: true });
-
+      const { count: recipeCount } = await supabase.from('recipes').select('id', { count: 'exact', head: true });
       if (!recipeCount || recipeCount === 0) {
-        res.status(400).json({
-          error: '⚠️ Nenhuma ficha técnica encontrada! Suba as fichas técnicas primeiro.',
-        });
+        res.status(400).json({ error: '⚠️ Nenhuma ficha técnica encontrada! Suba as fichas técnicas primeiro.' });
         return;
       }
 
-      // Read file — detect and handle multiple encodings:
-      // UTF-16 LE (BOM FF FE), UTF-16 BE (BOM FE FF), UTF-8 BOM (EF BB BF), latin1
       const rawBuf = fs.readFileSync(filepath);
-
       let textUtf8: string;
       const b0 = rawBuf[0], b1 = rawBuf[1], b2 = rawBuf[2];
 
       if (b0 === 0xFF && b1 === 0xFE) {
-        // UTF-16 LE with BOM (common in Windows PDV exports)
         textUtf8 = rawBuf.slice(2).toString('utf16le');
       } else if (b0 === 0xFE && b1 === 0xFF) {
-        // UTF-16 BE with BOM
         const swapped = Buffer.alloc(rawBuf.length - 2);
         for (let i = 0; i < swapped.length; i += 2) {
-          swapped[i]     = rawBuf[i + 3];
+          swapped[i] = rawBuf[i + 3];
           swapped[i + 1] = rawBuf[i + 2];
         }
         textUtf8 = swapped.toString('utf16le');
       } else if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
-        // UTF-8 with BOM — strip BOM
         textUtf8 = rawBuf.slice(3).toString('utf8');
       } else {
-        // Try UTF-8, fall back to latin1
         const asUtf8 = rawBuf.toString('utf8');
-        textUtf8 = asUtf8.includes('\uFFFD')
-          ? Buffer.from(rawBuf.toString('latin1'), 'latin1').toString('utf8')
-          : asUtf8;
+        textUtf8 = asUtf8.includes('\uFFFD') ? Buffer.from(rawBuf.toString('latin1'), 'latin1').toString('utf8') : asUtf8;
       }
 
-      // Strip any remaining null bytes and normalize line endings
       textUtf8 = textUtf8.replace(/\u0000/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
 
       const firstLine = textUtf8.split('\n')[0] ?? '';
@@ -368,26 +334,19 @@ app.post(
         return;
       }
 
-      // ── Detect PDV column positions from header row ───────────
-      // Header: categoria;grupo;codigo;descricao;qtd;vl_tot
       const headerRow = rows[0].map(h => h.toLowerCase().trim().replace(/[^a-z_]/g, ''));
       const colDescricao = headerRow.indexOf('descricao');
       const colQtd       = headerRow.findIndex(h => h === 'qtd');
       const isPdvFormat  = colDescricao >= 0 && colQtd >= 0;
 
-      // Fallback: old format Data;Prato;Quantidade (columns 0,1,2)
       const useColDesc = isPdvFormat ? colDescricao : 1;
       const useColQtd  = isPdvFormat ? colQtd       : 2;
-      const dataRows   = rows.slice(1); // always skip header
+      const dataRows   = rows.slice(1);
 
-      // ── Determine week code ───────────────────────────────────
-      // Frontend sends ?weekCode=YYYY-Www, otherwise we use the current ISO week
-      const weekCode: string =
-        (typeof req.query.weekCode === 'string' && req.query.weekCode.match(/^\d{4}-W\d{2}$/))
+      const weekCode: string = (typeof req.query.weekCode === 'string' && req.query.weekCode.match(/^\d{4}-W\d{2}$/))
           ? req.query.weekCode
-          : getISOWeekToday();
+          : getWeekToday();
 
-      // ── Load all recipes into memory ──────────────────────────
       const { data: allIngredients, error: fetchErr } = await supabase
         .from('recipe_ingredients')
         .select('ingredient, grams_per_portion, recipes(name)');
@@ -406,7 +365,6 @@ app.post(
         recipeIngMap.get(key)!.push({ ingredient: String(row.ingredient), grams: Number(row.grams_per_portion) });
       }
 
-      // ── Process rows ──────────────────────────────────────────
       let totalPortions = 0;
       const ingredientTotals: Record<string, number> = {};
       const matchedDishes = new Set<string>();
@@ -414,19 +372,13 @@ app.post(
 
       for (const row of dataRows) {
         if (row.length <= Math.max(useColDesc, useColQtd)) continue;
-
         const dishName = (row[useColDesc] ?? '').trim();
         const qty      = parseFloat((row[useColQtd] ?? '0').trim().replace(',', '.'));
 
         if (!dishName || isNaN(qty) || qty <= 0) continue;
-
         const recipe = recipeIngMap.get(dishName.toLowerCase());
 
-        if (!recipe) {
-          // No recipe → silently skip (drinks, desserts, entries, etc.)
-          skippedCount++;
-          continue;
-        }
+        if (!recipe) { skippedCount++; continue; }
 
         totalPortions += qty;
         matchedDishes.add(dishName);
@@ -437,27 +389,18 @@ app.post(
       }
 
       if (Object.keys(ingredientTotals).length === 0) {
-        res.status(400).json({
-          error: '⚠️ Nenhum prato com ficha técnica encontrado no arquivo. Verifique se as fichas técnicas estão cadastradas com os mesmos nomes do PDV.',
-        });
+        res.status(400).json({ error: '⚠️ Nenhum prato com ficha técnica encontrado no arquivo.' });
         return;
       }
 
-      // ── Upsert week + consumption records ─────────────────────
       const { data: weekRow, error: weekErr } = await supabase
         .from('weeks')
-        .upsert(
-          { week_code: weekCode, total_portions: totalPortions },
-          { onConflict: 'week_code' }
-        )
+        .upsert({ week_code: weekCode, total_portions: totalPortions }, { onConflict: 'week_code' })
         .select('id')
         .single();
 
-      if (weekErr || !weekRow) {
-        throw new Error(`Erro ao salvar semana "${weekCode}": ${weekErr?.message}`);
-      }
+      if (weekErr || !weekRow) throw new Error(`Erro ao salvar semana: ${weekErr?.message}`);
 
-      // Replace all records for this week
       await supabase.from('consumption_records').delete().eq('week_id', weekRow.id);
 
       const records = Object.entries(ingredientTotals).map(([ingredient, grams]) => ({
@@ -466,10 +409,8 @@ app.post(
         kg: parseFloat((grams / 1000).toFixed(4)),
       }));
 
-      const { error: recErr } = await supabase.from('consumption_records').insert(records);
-      if (recErr) throw new Error(`Erro ao salvar consumo: ${recErr.message}`);
+      await supabase.from('consumption_records').insert(records);
 
-      // Log the upload
       try {
         await supabase.from('upload_logs').insert({
           type: 'saidas',
@@ -477,30 +418,136 @@ app.post(
           week_code: weekCode,
           result: `${matchedDishes.size} pratos · ${totalPortions} porções · ${skippedCount} ignorados`,
         });
-      } catch { /* log não-bloqueante */ }
+      } catch { /* ignore */ }
 
       res.json({
         success: true,
-        message: `✅ Semana ${weekCode} salva! ${matchedDishes.size} prato(s) processado(s) · ${totalPortions} porções · ${skippedCount} item(ns) sem ficha ignorado(s).`,
-        week: weekCode,
-        matched_dishes: matchedDishes.size,
-        total_portions: totalPortions,
-        skipped_count: skippedCount,
+        message: `✅ Semana ${weekCode} salva! ${totalPortions} porções processadas.`,
       });
 
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido';
-      res.status(500).json({ error: `Erro ao processar saídas: ${message}` });
+      res.status(500).json({ error: message });
     } finally {
       cleanFile(filepath);
     }
   }
 );
 
-// Returns current ISO week string "YYYY-Www"
-function getISOWeekToday(): string {
-  return sundayWeekCode(new Date());
-}
+// ── Route: POST /api/agile/webhook (HTML via Zapier) ───────────
+app.post('/api/agile/webhook', async (req: Request, res: Response) => {
+  try {
+    const { body_html, subject } = req.body;
+    if (!body_html) return res.status(400).json({ error: 'Email HTML vazio' });
+
+    const $ = cheerio.load(body_html);
+    const rows: { descricao: string; qtd: number }[] = [];
+
+    // Tenta extrair a data do Assunto: "Resumo do movimento de 22/03/2026"
+    const dateMatch = subject?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    let dateStr = new Date().toISOString().split('T')[0]; // fallback hoje
+    if (dateMatch) dateStr = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+    const weekCode = sundayWeekCode(new Date(dateStr + 'T12:00:00'));
+
+    // Extrai da tabela do Agile
+    $('table.customTable tr, tr').each((_, el) => {
+      const cols = $(el).find('td');
+      if (cols.length >= 2) {
+        const descricao = $(cols[0]).text().trim();
+        const qtd = parseFloat($(cols[1]).text().replace(',', '.'));
+        if (descricao && !isNaN(qtd) && qtd > 0) {
+          rows.push({ descricao, qtd });
+        }
+      }
+    });
+
+    if (rows.length === 0) return res.status(400).json({ error: 'Nenhum produto encontrado' });
+
+    const { data: allIngredients } = await supabase.from('recipe_ingredients').select('ingredient, grams_per_portion, recipes(name)');
+    const recipeIngMap = new Map<string, { ingredient: string; grams: number }[]>();
+
+    for (const row of (allIngredients ?? [])) {
+      const recipesField = row.recipes as unknown as { name: string } | { name: string }[] | null;
+      if (!recipesField) continue;
+      const recipeName = Array.isArray(recipesField) ? recipesField[0]?.name : recipesField.name;
+      if (!recipeName) continue;
+      const key = recipeName.toLowerCase().trim();
+      if (!recipeIngMap.has(key)) recipeIngMap.set(key, []);
+      recipeIngMap.get(key)!.push({ ingredient: String(row.ingredient), grams: Number(row.grams_per_portion) });
+    }
+
+    let totalPortions = 0;
+    const ingredientTotals: Record<string, number> = {};
+    let skipped = 0;
+
+    for (const row of rows) {
+      const recipe = recipeIngMap.get(row.descricao.toLowerCase());
+      if (!recipe) { skipped++; continue; }
+      totalPortions += row.qtd;
+      for (const ing of recipe) {
+        ingredientTotals[ing.ingredient] = (ingredientTotals[ing.ingredient] ?? 0) + (ing.grams * row.qtd);
+      }
+    }
+
+    if (Object.keys(ingredientTotals).length === 0) return res.status(400).json({ error: 'Nenhum item com ficha processado' });
+
+    const { data: weekRow } = await supabase.from('weeks').upsert({ week_code: weekCode, total_portions: totalPortions }, { onConflict: 'week_code' }).select('id').single();
+    if (!weekRow) throw new Error('Erro ao criar semana');
+
+    await supabase.from('consumption_records').delete().eq('week_id', weekRow.id);
+
+    const records = Object.entries(ingredientTotals).map(([ingredient, grams]) => ({
+      week_id: weekRow.id,
+      ingredient,
+      kg: parseFloat((grams / 1000).toFixed(4))
+    }));
+
+    await supabase.from('consumption_records').insert(records);
+
+    await supabase.from('upload_logs').insert({
+      type: 'agile_email',
+      filename: `Email Automático: ${subject}`,
+      week_code: weekCode,
+      result: `${rows.length - skipped} itens salvos · ${skipped} ignorados`
+    });
+
+    return res.json({ success: true, message: `Webhook processou semana ${weekCode} com sucesso.` });
+
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── DELETE Routes (Lixeiras) ─────────────────────────────────
+
+// Deletar Ficha Técnica Específica
+app.delete('/api/recipes/:name', async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabase.from('recipes').delete().eq('name', req.params.name);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Deletar Semana Inteira (Saídas)
+app.delete('/api/weeks/:weekCode', async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabase.from('weeks').delete().eq('week_code', req.params.weekCode);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Deletar Registro de Upload (Aba Arquivos)
+app.delete('/api/uploads/:id', async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabase.from('upload_logs').delete().eq('id', req.params.id);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 
 // ── Route: GET /api/weeks ────────────────────────────────────
 app.get('/api/weeks', async (_req: Request, res: Response): Promise<void> => {
@@ -512,21 +559,13 @@ app.get('/api/weeks', async (_req: Request, res: Response): Promise<void> => {
 
     if (weeksErr) throw new Error(weeksErr.message);
 
-    // Get total kg per week via consumption_records
     const weekIds = (weeks ?? []).map(w => w.id);
     let kgByWeek: Record<string, number> = {};
 
     if (weekIds.length > 0) {
-      const { data: records, error: recErr } = await supabase
-        .from('consumption_records')
-        .select('week_id, kg')
-        .in('week_id', weekIds);
-
+      const { data: records, error: recErr } = await supabase.from('consumption_records').select('week_id, kg').in('week_id', weekIds);
       if (recErr) throw new Error(recErr.message);
-
-      for (const r of records ?? []) {
-        kgByWeek[r.week_id] = (kgByWeek[r.week_id] ?? 0) + Number(r.kg);
-      }
+      for (const r of records ?? []) { kgByWeek[r.week_id] = (kgByWeek[r.week_id] ?? 0) + Number(r.kg); }
     }
 
     const result = (weeks ?? []).map(w => ({
@@ -538,34 +577,17 @@ app.get('/api/weeks', async (_req: Request, res: Response): Promise<void> => {
     }));
 
     res.json(result);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    res.status(500).json({ error: message });
-  }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Route: GET /api/weeks/:weekCode ─────────────────────────
 app.get('/api/weeks/:weekCode', async (req: Request, res: Response): Promise<void> => {
   const { weekCode } = req.params;
-
   try {
-    const { data: week, error: weekErr } = await supabase
-      .from('weeks')
-      .select('id, week_code, total_portions')
-      .eq('week_code', weekCode)
-      .single();
+    const { data: week, error: weekErr } = await supabase.from('weeks').select('id, week_code, total_portions').eq('week_code', weekCode).single();
+    if (weekErr || !week) return (res.status(404).json({ error: `Semana "${weekCode}" não encontrada.` }) as any);
 
-    if (weekErr || !week) {
-      res.status(404).json({ error: `Semana "${weekCode}" não encontrada.` });
-      return;
-    }
-
-    const { data: records, error: recErr } = await supabase
-      .from('consumption_records')
-      .select('ingredient, kg')
-      .eq('week_id', week.id)
-      .order('kg', { ascending: false });
-
+    const { data: records, error: recErr } = await supabase.from('consumption_records').select('ingredient, kg').eq('week_id', week.id).order('kg', { ascending: false });
     if (recErr) throw new Error(recErr.message);
 
     const totalKg = (records ?? []).reduce((sum, r) => sum + Number(r.kg), 0);
@@ -574,167 +596,193 @@ app.get('/api/weeks/:weekCode', async (req: Request, res: Response): Promise<voi
       week_code: week.week_code,
       total_portions: week.total_portions,
       total_kg: parseFloat(totalKg.toFixed(3)),
-      records: (records ?? []).map(r => ({
-        ingredient: r.ingredient,
-        kg: parseFloat(Number(r.kg).toFixed(3)),
-      })),
+      records: (records ?? []).map(r => ({ ingredient: r.ingredient, kg: parseFloat(Number(r.kg).toFixed(3)) })),
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    res.status(500).json({ error: message });
-  }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Route: GET /api/recipes ──────────────────────────────────
-app.get('/api/recipes', async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const { data, error } = await supabase
-      .from('recipes')
-      .select('id, name, created_at')
-      .order('name');
-
-    if (error) throw new Error(error.message);
-    res.json(data ?? []);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    res.status(500).json({ error: message });
-  }
-});
-
-// ── Route: GET /api/recipes/list — flat rows for table display ──
+// ── Route: GET /api/recipes/list ─────────────────────────────
 app.get('/api/recipes/list', async (_req: Request, res: Response): Promise<void> => {
   try {
-    // Join recipe_ingredients with recipes using Supabase embedded select
-    const { data, error } = await supabase
-      .from('recipe_ingredients')
-      .select('ingredient, grams_per_portion, recipes(name)')
-      .order('ingredient');
-
+    const { data, error } = await supabase.from('recipe_ingredients').select('ingredient, grams_per_portion, recipes(name)').order('ingredient');
     if (error) throw new Error(error.message);
 
-    // Flatten and sort by dish name then ingredient
     const flat = (data ?? [])
       .map(r => {
         const recipesField = r.recipes as unknown as { name: string } | { name: string }[] | null;
         if (!recipesField) return null;
         const dishName = Array.isArray(recipesField) ? recipesField[0]?.name : recipesField.name;
         if (!dishName) return null;
-        return {
-          dish: dishName,
-          ingredient: String(r.ingredient),
-          grams_per_portion: Number(r.grams_per_portion),
-        };
+        return { dish: dishName, ingredient: String(r.ingredient), grams_per_portion: Number(r.grams_per_portion) };
       })
       .filter((r): r is { dish: string; ingredient: string; grams_per_portion: number } => r !== null)
       .sort((a, b) => { const d = a.dish.localeCompare(b.dish); return d !== 0 ? d : a.ingredient.localeCompare(b.ingredient); });
 
     res.json(flat);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    res.status(500).json({ error: message });
-  }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Route: DELETE /api/all — clear all data ──────────────────
+// ── Route: DELETE /api/all ───────────────────────────────────
 app.delete('/api/all', async (_req: Request, res: Response): Promise<void> => {
   try {
-    // Deleting weeks cascades to consumption_records
-    // Deleting recipes cascades to recipe_ingredients
     await supabase.from('consumption_records').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('weeks').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('recipe_ingredients').delete().neq('id', '00000000-0000-0000-0000-000000000000');
     await supabase.from('recipes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-
     res.json({ success: true, message: 'Todos os dados foram apagados.' });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    res.status(500).json({ error: message });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── WEBHOOK AGILE PDV (Recebe o email do Zapier em HTML) ──
+app.post('/api/agile/webhook', async (req: Request, res: Response) => {
+  try {
+    const { body_html, subject } = req.body;
+    if (!body_html) return res.status(400).json({ error: 'Email HTML vazio' });
+
+    const $ = cheerio.load(body_html);
+    const rows: { descricao: string; qtd: number }[] = [];
+
+    // Tenta extrair a data do Assunto: "Resumo do movimento de 22/03/2026"
+    const dateMatch = subject?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    let dateStr = new Date().toISOString().split('T')[0]; // Se não achar data, usa hoje
+    if (dateMatch) dateStr = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+    
+    // Calcula a semana de Domingo a Sábado (usando a mesma lógica do seu sistema)
+    const mDate = new Date(dateStr + 'T12:00:00');
+    const sunday = new Date(mDate);
+    sunday.setDate(mDate.getDate() - mDate.getDay());
+    sunday.setHours(0, 0, 0, 0);
+    const jan1 = new Date(sunday.getFullYear(), 0, 1);
+    const dayOfYear = Math.floor((sunday.getTime() - jan1.getTime()) / 864e5);
+    const weekNum = Math.floor(dayOfYear / 7) + 1;
+    const weekCode = `${sunday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+
+    // Varre o HTML procurando a tabela de produtos e extrai as linhas (<tr>) e colunas (<td>)
+    $('table.customTable tr, tr').each((_, el) => {
+      const cols = $(el).find('td');
+      if (cols.length >= 2) {
+        const descricao = $(cols[0]).text().trim();
+        const qtd = parseFloat($(cols[1]).text().replace(',', '.'));
+        // Se achou uma descrição e uma quantidade válida, salva
+        if (descricao && !isNaN(qtd) && qtd > 0) {
+          rows.push({ descricao, qtd });
+        }
+      }
+    });
+
+    if (rows.length === 0) return res.status(400).json({ error: 'Nenhum produto encontrado no email' });
+
+    // Busca todas as fichas no banco para cruzar os dados
+    const { data: allIngredients } = await supabase.from('recipe_ingredients').select('ingredient, grams_per_portion, recipes(name)');
+    const recipeIngMap = new Map<string, { ingredient: string; grams: number }[]>();
+
+    for (const row of (allIngredients ?? [])) {
+      const recipesField = row.recipes as unknown as { name: string } | { name: string }[] | null;
+      if (!recipesField) continue;
+      const recipeName = Array.isArray(recipesField) ? recipesField[0]?.name : recipesField.name;
+      if (!recipeName) continue;
+      
+      const key = recipeName.toLowerCase().trim();
+      if (!recipeIngMap.has(key)) recipeIngMap.set(key, []);
+      recipeIngMap.get(key)!.push({ ingredient: String(row.ingredient), grams: Number(row.grams_per_portion) });
+    }
+
+    let totalPortions = 0;
+    const ingredientTotals: Record<string, number> = {};
+    let skipped = 0;
+
+    // Cruza as vendas do email com as fichas técnicas
+    for (const row of rows) {
+      const recipe = recipeIngMap.get(row.descricao.toLowerCase());
+      if (!recipe) { skipped++; continue; } // Ignora itens sem ficha (bebidas, entradas, etc)
+      
+      totalPortions += row.qtd;
+      for (const ing of recipe) {
+        ingredientTotals[ing.ingredient] = (ingredientTotals[ing.ingredient] ?? 0) + (ing.grams * row.qtd);
+      }
+    }
+
+    if (Object.keys(ingredientTotals).length === 0) return res.status(400).json({ error: 'Nenhum item vendido possui ficha técnica.' });
+
+    // Salva/Atualiza a Semana no Supabase
+    const { data: weekRow } = await supabase.from('weeks').upsert({ week_code: weekCode, total_portions: totalPortions }, { onConflict: 'week_code' }).select('id').single();
+    if (!weekRow) throw new Error('Erro ao criar ou atualizar a semana');
+
+    // Limpa o consumo daquela semana e insere o novo recalculado
+    await supabase.from('consumption_records').delete().eq('week_id', weekRow.id);
+
+    const records = Object.entries(ingredientTotals).map(([ingredient, grams]) => ({
+      week_id: weekRow.id,
+      ingredient,
+      kg: parseFloat((grams / 1000).toFixed(4))
+    }));
+
+    await supabase.from('consumption_records').insert(records);
+
+    // Registra o sucesso na aba "Arquivos Enviados" (Logs)
+    await supabase.from('upload_logs').insert({
+      type: 'agile_email',
+      filename: `Email Automático: ${subject}`,
+      week_code: weekCode,
+      result: `${rows.length - skipped} itens salvos · ${skipped} ignorados`
+    });
+
+    return res.json({ success: true, message: `Webhook processou semana ${weekCode} com sucesso.` });
+
+  } catch (err: any) {
+    console.error("Erro no Webhook:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ── Dashboard summary endpoint ───────────────────────────────
-app.get('/api/dashboard', async (_req: Request, res: Response): Promise<void> => {
+// ── Dashboard com Filtros ────────────────────────────────────
+app.get('/api/dashboard', async (req: Request, res: Response): Promise<void> => {
   try {
-    // Current month ISO weeks: get all weeks for this year-month
-    const now = new Date();
-    const yearPrefix = `${now.getFullYear()}-W`;
+    const months = parseInt(req.query.months as string) || 12;
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - months);
 
-    const { data: allWeeks } = await supabase
-      .from('weeks')
-      .select('id, week_code, total_portions')
-      .order('week_code', { ascending: false });
-
-    const { data: allRecords } = await supabase
-      .from('consumption_records')
-      .select('week_id, ingredient, kg');
+    const { data: allWeeks } = await supabase.from('weeks').select('id, week_code, total_portions, created_at').order('week_code', { ascending: false });
+    const { data: allRecords } = await supabase.from('consumption_records').select('week_id, ingredient, kg');
 
     const weeksArr = allWeeks ?? [];
     const recordsArr = allRecords ?? [];
 
-    // Map weekId → week_code
-    const weekIdToCode = new Map(weeksArr.map(w => [w.id, w.week_code]));
+    const periodWeeks = weeksArr.filter(w => new Date(w.created_at) >= cutoffDate);
+    const periodWeekIds = new Set(periodWeeks.map(w => w.id));
+    const periodRecords = recordsArr.filter(r => periodWeekIds.has(r.week_id));
 
-    // This year's data (approximate "this year" for monthly filter)
-    const thisYearWeeks = weeksArr.filter(w => w.week_code.startsWith(yearPrefix));
-    const thisYearWeekIds = new Set(thisYearWeeks.map(w => w.id));
+    const totalKg = periodRecords.reduce((s, r) => s + Number(r.kg), 0);
+    const totalPortions = periodWeeks.reduce((s, w) => s + w.total_portions, 0);
 
-    const monthRecords = recordsArr.filter(r => thisYearWeekIds.has(r.week_id));
-
-    const totalKgThisYear = monthRecords.reduce((s, r) => s + Number(r.kg), 0);
-    const totalPortionsThisYear = thisYearWeeks.reduce((s, w) => s + w.total_portions, 0);
-
-    // Top 5 ingredients this year
     const ingMap: Record<string, number> = {};
-    for (const r of monthRecords) {
-      ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + Number(r.kg);
-    }
-    const top5 = Object.entries(ingMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }));
+    for (const r of periodRecords) { ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + Number(r.kg); }
+    const top5 = Object.entries(ingMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }));
 
-    // Recipe count
-    const { count: recipeCount } = await supabase
-      .from('recipes')
-      .select('id', { count: 'exact', head: true });
+    const { count: recipeCount } = await supabase.from('recipes').select('id', { count: 'exact', head: true });
 
     res.json({
-      total_kg_this_year: parseFloat(totalKgThisYear.toFixed(3)),
-      total_portions_this_year: totalPortionsThisYear,
-      total_weeks: weeksArr.length,
+      total_kg: parseFloat(totalKg.toFixed(3)),
+      total_portions: totalPortions,
+      total_weeks: periodWeeks.length,
       recipe_count: recipeCount ?? 0,
       top5_ingredients: top5,
       recent_weeks: weeksArr.slice(0, 4).map(w => {
         const weekRecords = recordsArr.filter(r => r.week_id === w.id);
         const kg = weekRecords.reduce((s, r) => s + Number(r.kg), 0);
-        return {
-          week_code: w.week_code,
-          total_portions: w.total_portions,
-          total_kg: parseFloat(kg.toFixed(3)),
-        };
+        return { week_code: w.week_code, total_portions: w.total_portions, total_kg: parseFloat(kg.toFixed(3)) };
       }),
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    res.status(500).json({ error: message });
-  }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Route: GET /api/upload-logs ─────────────────────────────────────
+// ── Route: GET /api/upload-logs ──────────────────────────────
 app.get('/api/upload-logs', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const { data, error } = await supabase
-      .from('upload_logs')
-      .select('id, type, filename, week_code, result, created_at')
-      .order('created_at', { ascending: false })
-      .limit(200);
-
+    const { data, error } = await supabase.from('upload_logs').select('id, type, filename, week_code, result, created_at').order('created_at', { ascending: false }).limit(200);
     if (error) throw new Error(error.message);
     res.json(data ?? []);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    res.status(500).json({ error: message });
-  }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Error middleware ─────────────────────────────────────────
@@ -745,7 +793,5 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 // ── Start server ─────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`\n🍽  Controle de Matéria-Prima rodando em http://localhost:${PORT}`);
-  console.log(`   Supabase: ${SUPABASE_URL}`);
-  console.log(`   Pressione Ctrl+C para parar\n`);
+  console.log(`\n🍽  Controle de Matéria-Prima rodando na porta ${PORT}`);
 });
