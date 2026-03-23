@@ -745,7 +745,7 @@ function renderFichasTable(rows) {
   rows.forEach(r => {
     const isNew = r.dish !== lastDish;
     if (isNew) dishCount++;
-    const actionBtn = isNew ? `<button onclick="deleteRecipe('${r.dish}')" title="Excluir Prato" style="background:none;border:none;cursor:pointer;color:var(--danger)">🗑️</button>` : '';
+    const actionBtn = isNew ? `<button onclick="deleteRecipe('${r.dish}')" title="Excluir Prato" style="background:none;border:none;cursor:pointer;color:var(--danger)">Excluir</button>` : '';
     html += `<tr>
       <td style="font-weight:${isNew ? 600 : 400};color:${isNew ? 'var(--ink)' : 'var(--muted)'}">${isNew ? r.dish : ''}</td>
       <td style="width:50px;text-align:center">${actionBtn}</td>
@@ -870,7 +870,7 @@ async function loadHistorico() {
 
     grid.innerHTML = weeks.map(w => `
       <div class="week-card" style="position:relative">
-        <button onclick="deleteWeek('${w.week_code}')" title="Excluir Semana" style="position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;color:var(--danger)">🗑️</button>
+        <button onclick="deleteWeek('${w.week_code}')" title="Excluir Semana" style="position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;color:var(--danger)">Excluir</button>
         <div onclick="openWeekDetail('${w.week_code}')" style="display:flex;justify-content:space-between;align-items:flex-start;padding-right:30px">
           <div>
             <div class="week-badge">${w.week_code}</div>
@@ -1038,7 +1038,7 @@ async function loadUploads() {
       const badge = typeBadge[log.type] || 'background:#f3f4f6;color:#374151;border:1px solid #d1d5db';
       const label = typeLabel[log.type] || log.type;
       return `<tr>
-        <td style="width:50px;text-align:center"><button onclick="deleteUpload('${log.id}')" title="Excluir Registro" style="background:none;border:none;cursor:pointer;color:var(--danger)">🗑️</button></td>
+        <td style="width:50px;text-align:center"><button onclick="deleteUpload('${log.id}')" title="Excluir Registro" style="background:none;border:none;cursor:pointer;color:var(--danger)">Excluir</button></td>
         <td class="mono" style="font-size:12px">${dtStr}</td>
         <td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;${badge}">${label}</span></td>
         <td style="font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${log.filename}">${log.filename}</td>

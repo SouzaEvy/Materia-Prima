@@ -111,9 +111,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ── Express setup ────────────────────────────────────────────
 const app = express();
 app.use(cors());
-// Limite aumentado para aceitar emails HTML grandes do Zapier
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ── Configuração para o painel abrir na produção (Railway) ──
+const publicPath = path.join(process.cwd(), 'public');
+app.use(express.static(publicPath));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(publicPath, 'index.html'));
+}); 
 
 // ── Multer (temp disk storage in /uploads) ───────────────────
 const upload = multer({
