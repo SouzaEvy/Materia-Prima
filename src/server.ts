@@ -82,7 +82,7 @@
  * ============================================================
  */
 
-import * from 'cheerio';
+import * as cheerio from 'cheerio';
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
