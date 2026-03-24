@@ -453,18 +453,15 @@ app.post('/api/agile/webhook', async (req: Request, res: Response) => {
 
     // Tenta extrair a data do Assunto do email
     const dateMatch = subject?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    let dateStr = new Date().toISOString().split('T')[0];
-    if (dateMatch) dateStr = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
     
-    // Calcula a semana
-    const mDate = new Date(dateStr + 'T12:00:00');
-    const sunday = new Date(mDate);
-    sunday.setDate(mDate.getDate() - mDate.getDay());
-    sunday.setHours(0, 0, 0, 0);
-    const jan1 = new Date(sunday.getFullYear(), 0, 1);
-    const dayOfYear = Math.floor((sunday.getTime() - jan1.getTime()) / 864e5);
-    const weekNum = Math.floor(dayOfYear / 7) + 1;
-    const weekCode = `${sunday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+    // Se achar a data no email usa ela, senão usa o dia de hoje
+    let reportCode = new Date().toISOString().split('T')[0]; 
+    if (dateMatch) {
+      reportCode = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+    }
+    
+    // O weekCode agora passa a ser a data exata do dia (Ex: 2026-03-23)
+    const weekCode = reportCode;
 
     // 1. ISOLAR A TABELA CERTA (Produtos Vendidos Diários)
     // O Agile manda várias tabelas iguais (Top 20 mensal, etc). 

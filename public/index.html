@@ -627,8 +627,17 @@ function showAlert(elId, type, html) {
 
 function fmtWeek(code) {
   if(!code) return '';
-  const [yr, wk] = code.split('-W');
-  return `Semana ${parseInt(wk)} de ${yr}`;
+  // Se for o formato antigo de semana (ex: 2026-W12)
+  if (code.includes('W')) {
+    const [yr, wk] = code.split('-W');
+    return `Semana ${parseInt(wk)} de ${yr}`;
+  }
+  // Se for o formato novo de DIA (ex: 2026-03-23)
+  const partes = code.split('-');
+  if (partes.length === 3) {
+    return `${partes[2]}/${partes[1]}/${partes[0]}`; // Retorna DD/MM/AAAA
+  }
+  return code;
 }
 
 // ── DELETE ACTIONS ───────────────────────────────────
@@ -868,19 +877,17 @@ async function loadHistorico() {
       return;
     }
 
-    grid.innerHTML = weeks.map(w => `
-      <div class="week-card" style="position:relative">
-        <button onclick="deleteWeek('${w.week_code}')" title="Excluir Semana" style="position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;color:var(--danger)">Excluir</button>
-        <div onclick="openWeekDetail('${w.week_code}')" style="display:flex;justify-content:space-between;align-items:flex-start;padding-right:30px">
-          <div>
-            <div class="week-badge">${w.week_code}</div>
-            <div style="font-size:15px;font-weight:700;font-family:'Syne',sans-serif;margin-top:3px">${fmtWeek(w.week_code)}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:4px">${w.total_portions} porções</div>
-          </div>
-          <div style="text-align:right">
-            <div class="mono" style="font-size:18px;font-weight:600;color:var(--accent)">${w.total_kg.toFixed(2)}</div>
-            <div style="font-size:11px;color:var(--muted)">kg consumidos</div>
-          </div>
+   grid.innerHTML = weeks.map(w => `
+      <div class="week-card" style="display:flex; justify-content:space-between; align-items:center;">
+        <div onclick="openWeekDetail('${w.week_code}')" style="flex:1; cursor:pointer;">
+          <div class="week-badge">${w.week_code}</div>
+          <div style="font-size:15px;font-weight:700;font-family:'Syne',sans-serif;margin-top:3px">${fmtWeek(w.week_code)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">${w.total_portions} porções</div>
+        </div>
+        <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end;">
+          <button onclick="deleteWeek('${w.week_code}')" title="Excluir" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;margin-bottom:8px">🗑️</button>
+          <div class="mono" style="font-size:18px;font-weight:600;color:var(--accent)">${w.total_kg.toFixed(2)}</div>
+          <div style="font-size:11px;color:var(--muted)">kg consumidos</div>
         </div>
       </div>
     `).join('');
