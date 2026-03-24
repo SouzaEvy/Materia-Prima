@@ -123,17 +123,20 @@ app.get('/', (req, res) => {
 }); 
 
 // ── Multer (temp disk storage in /uploads) ───────────────────
+// Configuração do Multer (O Porteiro)
 const upload = multer({
   dest: path.join(__dirname, '..', 'uploads'),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 50 * 1024 * 1024 }, // Aumentei o limite para 50MB (Excel costuma ser pesado)
   fileFilter: (_req, file, cb) => {
     const isCSV = file.mimetype === 'text/csv' || file.originalname.toLowerCase().endsWith('.csv');
     const isPDF = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
-
-    if (isCSV || isPDF) {
+    const isExcel = file.originalname.toLowerCase().endsWith('.xlsx') || file.originalname.toLowerCase().endsWith('.xlsm');
+    
+    // Se for CSV, PDF ou Excel, deixa entrar!
+    if (isCSV || isPDF || isExcel) {
       cb(null, true);
     } else {
-      cb(new Error('Apenas arquivos .csv ou .pdf são aceitos'));
+      cb(new Error('Formato inválido. Envie apenas .csv, .pdf, .xlsx ou .xlsm'));
     }
   },
 });
@@ -801,44 +804,100 @@ app.post('/api/agile/webhook', async (req: Request, res: Response) => {
 });
 
 // ── Dashboard com Filtros ────────────────────────────────────
-app.get('/api/dashboard', async (req: Request, res: Response): Promise<void> => {
+app.get('/api/dashboard', async (req, res) => {
   try {
     const months = parseInt(req.query.months as string) || 12;
-    const cutoffDate = new Date();
-    cutoffDate.setMonth(cutoffDate.getMonth() - months);
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
 
+    // Busca Semanas(Dias), Registros e Compras
     const { data: allWeeks } = await supabase.from('weeks').select('id, week_code, total_portions, created_at').order('week_code', { ascending: false });
     const { data: allRecords } = await supabase.from('consumption_records').select('week_id, ingredient, kg');
+    const { data: allCompras } = await supabase.from('compras').select('valor_total, data_compra');
 
-    const weeksArr = allWeeks ?? [];
-    const recordsArr = allRecords ?? [];
+    // Filtra pelo período selecionado no dropdown
+    const periodWeeks = (allWeeks ?? []).filter(w => {
+      const d = w.week_code.match(/^\d{4}-\d{2}-\d{2}$/) ? new Date(w.week_code + 'T12:00:00') : new Date(w.created_at);
+      return d >= cutoff;
+    });
 
-    const periodWeeks = weeksArr.filter(w => new Date(w.created_at) >= cutoffDate);
+    const periodCompras = (allCompras ?? []).filter(c => {
+      const d = new Date(c.data_compra + 'T12:00:00');
+      return d >= cutoff;
+    });
+
     const periodWeekIds = new Set(periodWeeks.map(w => w.id));
-    const periodRecords = recordsArr.filter(r => periodWeekIds.has(r.week_id));
+    const periodRecords = (allRecords ?? []).filter(r => periodWeekIds.has(r.week_id));
 
+    // Cálculos do Dashboard
     const totalKg = periodRecords.reduce((s, r) => s + Number(r.kg), 0);
     const totalPortions = periodWeeks.reduce((s, w) => s + w.total_portions, 0);
+    const totalCompras = periodCompras.reduce((s, c) => s + Number(c.valor_total || 0), 0); // Soma o valor em Reais
 
     const ingMap: Record<string, number> = {};
-    for (const r of periodRecords) { ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + Number(r.kg); }
+    for (const r of periodRecords) ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + Number(r.kg);
     const top5 = Object.entries(ingMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }));
-
+    
     const { count: recipeCount } = await supabase.from('recipes').select('id', { count: 'exact', head: true });
 
     res.json({
+      total_compras: totalCompras,
       total_kg: parseFloat(totalKg.toFixed(3)),
       total_portions: totalPortions,
       total_weeks: periodWeeks.length,
       recipe_count: recipeCount ?? 0,
       top5_ingredients: top5,
-      recent_weeks: weeksArr.slice(0, 4).map(w => {
-        const weekRecords = recordsArr.filter(r => r.week_id === w.id);
-        const kg = weekRecords.reduce((s, r) => s + Number(r.kg), 0);
+      recent_weeks: periodWeeks.slice(0, 4).map(w => {
+        const kg = periodRecords.filter(r => r.week_id === w.id).reduce((s, r) => s + Number(r.kg), 0);
         return { week_code: w.week_code, total_portions: w.total_portions, total_kg: parseFloat(kg.toFixed(3)) };
-      }),
+      })
     });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Route: GET /api/reports (Relatório por Período de Datas Livre) ──
+app.get('/api/reports', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    let query = supabase.from('weeks').select('id, week_code, total_portions');
+    
+    // Aplica o filtro de data (maior que start, menor que end)
+    if (start) query = query.gte('week_code', start);
+    if (end) query = query.lte('week_code', end);
+    
+    const { data: weeks, error } = await query;
+    if (error) throw error;
+
+    if (!weeks || weeks.length === 0) {
+      return res.json({ total_portions: 0, total_kg: 0, records: [] });
+    }
+
+    const weekIds = weeks.map(w => w.id);
+    const { data: records } = await supabase.from('consumption_records').select('ingredient, kg').in('week_id', weekIds);
+
+    let totalPortions = 0;
+    let totalKg = 0;
+    weeks.forEach(w => totalPortions += w.total_portions);
+
+    const ingMap: Record<string, number> = {};
+    (records || []).forEach(r => {
+      ingMap[r.ingredient] = (ingMap[r.ingredient] || 0) + Number(r.kg);
+      totalKg += Number(r.kg);
+    });
+
+    const finalRecords = Object.entries(ingMap)
+      .map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }))
+      .sort((a,b) => b.kg - a.kg);
+
+    res.json({ 
+      total_portions: totalPortions, 
+      total_kg: parseFloat(totalKg.toFixed(3)), 
+      records: finalRecords 
+    });
+
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Route: POST /api/compras/upload (Lê o PDF de Pedidos) ──
@@ -949,6 +1008,17 @@ app.get('/api/compras', async (req: Request, res: Response) => {
   }
 });
 
+// ── Route: DELETE /api/compras/data/:data (Exclui todas as compras de um lote/dia) ──
+app.delete('/api/compras/data/:data', async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabase.from('compras').delete().eq('data_compra', req.params.data);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/compras/:id', async (req: Request, res: Response) => {
   try {
     const { error } = await supabase.from('compras').delete().eq('id', req.params.id);
@@ -972,6 +1042,168 @@ app.get('/api/upload-logs', async (_req: Request, res: Response): Promise<void> 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: err.message ?? 'Erro interno do servidor' });
+});
+
+// Route: POST /api/inventario/upload (Lê os CSVs Semanai ou Quinzenais)
+
+// ── INVENTÁRIO (CONTAGEM DE ESTOQUE) ──────────────────────────────────────
+
+// ── INVENTÁRIO (CONTAGEM DE ESTOQUE) ──────────────────────────────────────
+
+app.post('/api/inventario/upload', (req: Request, res: Response): void => {
+  upload.array('files', 50)(req, res, async (multerErr: any) => {
+    if (multerErr) {
+      res.status(400).json({ error: 'Erro ao receber o arquivo: ' + multerErr.message });
+      return;
+    }
+
+    if (!req.files || (req.files as Express.Multer.File[]).length === 0) {
+      res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+      return;
+    }
+
+    const files = req.files as Express.Multer.File[];
+    const inventarioProcessado: any[] = [];
+    const fs = require('fs');
+
+    try {
+      const dataContagem = (typeof req.query.date === 'string' && req.query.date) ? req.query.date : new Date().toISOString().split('T')[0];
+      const ExcelJS = require('exceljs');
+
+      for (const file of files) {
+        const fileBuffer = fs.readFileSync(file.path);
+        const workbook = new ExcelJS.Workbook();
+        
+        await workbook.xlsx.load(fileBuffer);
+
+        workbook.eachSheet((sheet: any) => {
+          const rows: string[][] = [];
+          
+          // O SEGREDO AQUI: Pula linhas vazias e tem TRAVA de 2.000 linhas
+          sheet.eachRow((row: any, rowNumber: number) => {
+            if (rowNumber > 2000) return; // Evita o loop infinito do Excel
+
+            const rowValues: string[] = [];
+            // O ExcelJS guarda os valores num array. Nós extraímos direto (muito mais rápido)
+            if (Array.isArray(row.values)) {
+              for (let i = 1; i < row.values.length; i++) {
+                const cellVal = row.values[i];
+                let textVal = '';
+                // Lê o texto ou o resultado da fórmula
+                if (cellVal !== null && cellVal !== undefined) {
+                   textVal = typeof cellVal === 'object' && cellVal.result !== undefined ? String(cellVal.result) : String(cellVal);
+                }
+                rowValues.push(textVal);
+              }
+            }
+            rows.push(rowValues);
+          });
+
+          if (rows.length < 2) return;
+
+          let colDesc = -1, colQtd = -1;
+          let startRow = -1;
+
+          // Procura o cabeçalho
+          for (let i = 0; i < Math.min(30, rows.length); i++) {
+            if (!rows[i]) continue;
+            const rowLower = rows[i].map((c: string) => c.toLowerCase().trim().replace(/ç/g, 'c').replace(/ã/g, 'a').replace(/\./g, ''));
+            
+            // Padrão 1 (Semanal)
+            if (rowLower.includes('descricao item') && (rowLower.includes('qt na emb'))) {
+              colDesc = rowLower.findIndex((c: string) => c === 'descricao item');
+              colQtd = rowLower.findIndex((c: string) => c.includes('qt na emb'));
+              startRow = i + 1; break;
+            }
+            // Padrão 2 (Mensal)
+            else if (rowLower.includes('codigo everest') && rowLower.includes('descricao') && rowLower.includes('quantidade')) {
+              colDesc = rowLower.findIndex((c: string) => c === 'descricao');
+              colQtd = rowLower.findIndex((c: string) => c === 'quantidade');
+              startRow = i + 1; break;
+            }
+          }
+
+          if (startRow === -1) return;
+
+          // Extrai os produtos
+          for (let i = startRow; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length <= Math.max(colDesc, colQtd)) continue;
+
+            const produto = (row[colDesc] || '').trim();
+            let quantidadeStr = (row[colQtd] || '0').trim();
+            if (quantidadeStr.includes(',')) quantidadeStr = quantidadeStr.replace(/\./g, '').replace(',', '.');
+            const quantidade = parseFloat(quantidadeStr);
+
+            if (produto && !isNaN(quantidade) && quantidade > 0) {
+              inventarioProcessado.push({
+                data_contagem: dataContagem,
+                produto: produto,
+                quantidade: quantidade,
+                unidade: '' 
+              });
+            }
+          }
+        });
+      }
+
+      if (inventarioProcessado.length === 0) {
+        res.status(400).json({ error: 'Nenhum dado válido encontrado. O sistema ignorou as abas de resumo ou as tabelas vazias.' });
+        return;
+      }
+
+      const { error: insertErr } = await supabase.from('inventario').insert(inventarioProcessado);
+      if (insertErr) throw new Error(insertErr.message);
+
+      await supabase.from('upload_logs').insert({ type: 'inventario', filename: `Planilha Excel`, result: `${inventarioProcessado.length} itens registrados.` });
+
+      res.json({ success: true, message: `✅ Leitura concluída! ${inventarioProcessado.length} itens capturados com sucesso.` });
+    } catch (err: any) {
+      console.error("Erro interno no servidor:", err);
+      // Devolve o erro para a tela caso o Excel esteja corrompido
+      res.status(500).json({ error: 'Erro ao processar o arquivo: ' + err.message });
+    } finally {
+      files.forEach(file => {
+        try { fs.unlinkSync(file.path); } catch(e) {}
+      });
+    }
+  });
+});
+
+// Route: GET /api/inventario
+app.get('/api/inventario', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('inventario').select('*').order('data_contagem', { ascending: false }).limit(400);
+    if (error) throw new Error(error.message);
+    res.json(data ?? []);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Route: DELETE /api/inventario/data/:data
+app.delete('/api/inventario/data/:data', async (req, res) => {
+  try {
+    const { error } = await supabase.from('inventario').delete().eq('data_contagem', req.params.data);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Route: GET /api/inventario (Lista as contagens)
+app.get('/api/inventario', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('inventario').select('*').order('data_contagem', { ascending: false }).limit(400);
+    if (error) throw new Error(error.message);
+    res.json(data ?? []);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// Route: DELETE /api/inventario/data/:data (Exclui lote do inventário)
+app.delete('/api/inventario/data/:data', async (req, res) => {
+  try {
+    const { error } = await supabase.from('inventario').delete().eq('data_contagem', req.params.data);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Start server ─────────────────────────────────────────────
