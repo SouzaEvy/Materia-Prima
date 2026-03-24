@@ -127,10 +127,13 @@ const upload = multer({
   dest: path.join(__dirname, '..', 'uploads'),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+    const isCSV = file.mimetype === 'text/csv' || file.originalname.toLowerCase().endsWith('.csv');
+    const isPDF = file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf');
+
+    if (isCSV || isPDF) {
       cb(null, true);
     } else {
-      cb(new Error('Apenas arquivos .csv são aceitos'));
+      cb(new Error('Apenas arquivos .csv ou .pdf são aceitos'));
     }
   },
 });
@@ -836,6 +839,124 @@ app.get('/api/dashboard', async (req: Request, res: Response): Promise<void> => 
       }),
     });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Route: POST /api/compras/upload (Lê o PDF de Pedidos) ──
+app.post('/api/compras/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
+  if (!req.file) {
+    res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+    return;
+  }
+
+  const filepath = req.file.path;
+
+  try {
+    const dataBuffer = fs.readFileSync(filepath);
+    
+    // 1. Carrega o módulo na versão 2.0+ 
+    const pdfLib: any = require('pdf-parse');
+    
+    // 2. Extrai a Classe oficial 'PDFParse' do módulo
+    const PDFParseClass = pdfLib.PDFParse || (pdfLib.default && pdfLib.default.PDFParse);
+    
+    if (!PDFParseClass) {
+      throw new Error("Não foi possível encontrar a classe PDFParse na biblioteca.");
+    }
+
+    // 3. Inicializa o leitor e extrai o texto (Nova API)
+    const parser = new PDFParseClass({ data: dataBuffer });
+    const result = await parser.getText();
+    const text = result.text || "";
+
+    const comprasProcessadas: any[] = [];
+    
+    // Extrai a data do pedido do PDF (Ex: 23/03/2026)
+    let dataPedido = new Date().toISOString().split('T')[0]; 
+    const dataMatch = text.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (dataMatch) {
+      dataPedido = `${dataMatch[3]}-${dataMatch[2]}-${dataMatch[1]}`;
+    }
+
+    // O "Leitor Inteligente" criado para o padrão da Vila Leopoldina
+    const textoPlano = text.replace(/\n/g, ' ');
+
+    // Busca exatamente o padrão: [Produto] R$ [ValorUn] [Qtd] R$ [Total]
+    const regexPoderoso = /((?:(?!R\$).)+?)\s+R\$\s*([\d.,]+)\s+([\d.,]+)\s+R\$\s*([\d.,]+)/g;
+    
+    let match;
+    while ((match = regexPoderoso.exec(textoPlano)) !== null) {
+      let pedacos = match[1].split(/Total|Qtde|Observação/i);
+      let nomeLimpo = pedacos[pedacos.length - 1].trim();
+      
+      nomeLimpo = nomeLimpo.replace(/Pedido nº.*?Realizado.*?(\d{2}-|[A-Z])/i, '$1').trim();
+      if (nomeLimpo.length > 80) nomeLimpo = nomeLimpo.substring(nomeLimpo.length - 80).trim();
+
+      // ── NOVA REGRA: MATA O FORNECEDOR ──
+      // Procura o padrão "05-", "06-", etc. e corta tudo o que vem antes!
+      const matchCodigo = nomeLimpo.match(/\b\d{2}\s?-/);
+      if (matchCodigo) {
+        nomeLimpo = nomeLimpo.substring(nomeLimpo.indexOf(matchCodigo[0]));
+      }
+      // ───────────────────────────────────
+
+      const valorUn = parseFloat(match[2].replace(/\./g, '').replace(',', '.'));
+      const qtd = parseFloat(match[3].replace(/\./g, '').replace(',', '.'));
+      const valorTot = parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
+
+      if (nomeLimpo && qtd > 0) {
+        comprasProcessadas.push({
+          data_compra: dataPedido,
+          produto: nomeLimpo,
+          quantidade: qtd,
+          valor_unitario: valorUn,
+          valor_total: valorTot
+        });
+      }
+    }
+    if (comprasProcessadas.length === 0) {
+      res.status(400).json({ error: 'Nenhum produto reconhecido. O layout do PDF não bate com o padrão esperado.' });
+      return;
+    }
+
+    // Salva no banco de dados
+    const { error: insertErr } = await supabase.from('compras').insert(comprasProcessadas);
+    if (insertErr) throw new Error(insertErr.message);
+
+    // Registra nos logs
+    await supabase.from('upload_logs').insert({
+      type: 'compras',
+      filename: req.file.originalname,
+      result: `${comprasProcessadas.length} produtos adicionados ao estoque.`
+    });
+
+    res.json({ success: true, message: `✅ ${comprasProcessadas.length} itens registrados no estoque!` });
+  } catch (err: any) {
+    console.error("Erro no Upload do PDF:", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    cleanFile(filepath);
+  }
+});
+
+// ── Route: GET /api/compras (Lista as compras) ──
+app.get('/api/compras', async (req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabase.from('compras').select('*').order('created_at', { ascending: false }).limit(100);
+    if (error) throw new Error(error.message);
+    res.json(data ?? []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/compras/:id', async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabase.from('compras').delete().eq('id', req.params.id);
+    if (error) throw new Error(error.message);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Route: GET /api/upload-logs ──────────────────────────────

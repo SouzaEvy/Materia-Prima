@@ -269,13 +269,17 @@
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       Subir Fichas Técnicas
     </button>
+    <button class="nav-btn" onclick="navigate('compras')" data-page="compras">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7h-3V4c0-1.1-.9-2-2-2H9C7.9 2 7 2.9 7 4v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM9 4h6v3H9V4z"/></svg>
+      Entrada de Compras (PDF)
+    </button>
     <button class="nav-btn" onclick="navigate('saidas')" data-page="saidas">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       Subir Saídas Semanais
     </button>
     <button class="nav-btn" onclick="navigate('historico')" data-page="historico">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Histórico de Semanas
+      Histórico de Consumo
     </button>
     <button class="nav-btn" onclick="navigate('relatorios')" data-page="relatorios">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -356,6 +360,32 @@
       <div class="card">
         <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">Últimas Semanas</h3>
         <div id="dash-recent"><span style="color:var(--muted);font-size:13px">Nenhuma semana registrada.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="sec-compras">
+    <div id="compras-alert" style="margin-bottom:16px"></div>
+
+    <input type="file" id="compras-file" accept=".pdf" />
+    <label for="compras-file" class="upload-zone" style="margin-bottom:24px; border-color:var(--accent2); color:var(--accent2)">
+      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      Subir PDF de Pedidos/Notas
+      <span class="hint">Ele vai extrair Produto, Quantidade e Valor automaticamente</span>
+    </label>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:15px; border-bottom:1px solid var(--border)"><h3 style="font-family:'Syne';font-weight:700;font-size:14px">Últimas Entradas</h3></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th style="width:40px"></th><th>Data</th><th>Produto</th><th>Quantidade</th><th>Valor Un.</th><th>Total</th></tr></thead>
+          <tbody id="compras-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -561,6 +591,7 @@ const pageTitles = {
   historico: 'Histórico de Semanas',
   relatorios:'Relatórios de Consumo',
   uploads:   'Arquivos Enviados',
+  compras:   'Entrada de Compras',
 };
 
 function navigate(page) {
@@ -578,6 +609,7 @@ function navigate(page) {
   if (page === 'historico') loadHistorico();
   if (page === 'relatorios') initRelatorios();
   if (page === 'uploads')   loadUploads();
+  if (page === 'compras')   loadCompras();
 }
 
 function toggleSidebar() {
@@ -1036,8 +1068,8 @@ async function loadUploads() {
       return;
     }
 
-    const typeLabel = { fichas: 'Fichas Técnicas', saidas: 'Saídas Semanais', agile_email: 'Integração Agile' };
-    const typeBadge = { fichas: 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe', saidas: 'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0', agile_email: 'background:#fef2f2;color:#991b1b;border:1px solid #fecaca' };
+    const typeLabel = { fichas: 'Fichas Técnicas', saidas: 'Saídas Semanais', agile_email: 'Integração Agile', compras: 'Entrada Estoque' };
+    const typeBadge = { fichas: 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe', saidas: 'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0', agile_email: 'background:#fef2f2;color:#991b1b;border:1px solid #fecaca', compras: 'background:#fdf4ff;color:#86198f;border:1px solid #f5d0fe' };
 
     tbody.innerHTML = logs.map(log => {
       const dt = new Date(log.created_at);
@@ -1054,6 +1086,57 @@ async function loadUploads() {
       </tr>`;
     }).join('');
   } catch (err) { showToast('Erro ao carregar arquivos: ' + err.message, 'error'); }
+}
+
+// ── COMPRAS E ESTOQUE ────────────────────────────────
+document.getElementById('compras-file').addEventListener('change', async function () {
+  if (!this.files[0]) return;
+  setLoading(true, 'Lendo o PDF de compras...');
+  const fd = new FormData();
+  fd.append('file', this.files[0]);
+
+  try {
+    const data = await api('POST', '/api/compras/upload', fd);
+    showAlert('compras-alert', 'success', data.message);
+    showToast(data.message);
+    loadCompras();
+  } catch (err) {
+    showAlert('compras-alert', 'error', err.message);
+    showToast(err.message, 'error');
+  } finally { setLoading(false); this.value = ''; }
+});
+
+async function loadCompras() {
+  try {
+    const compras = await api('GET', '/api/compras');
+    const tbody = document.getElementById('compras-tbody');
+    if (!compras.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr>';
+      return;
+    }
+    
+    tbody.innerHTML = compras.map(c => `<tr>
+      <td style="text-align:center">
+        <button onclick="deleteCompra('${c.id}')" title="Excluir Item" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;padding:4px">🗑️</button>
+      </td>
+      <td class="mono" style="font-size:12px">${c.data_compra.split('-').reverse().join('/')}</td>
+      <td style="font-weight:500">${c.produto}</td>
+      <td class="mono">${c.quantidade}</td>
+      <td class="mono" style="color:var(--muted)">R$ ${Number(c.valor_unitario).toFixed(2)}</td>
+      <td class="mono" style="font-weight:600; color:var(--ink)">R$ ${Number(c.valor_total).toFixed(2)}</td>
+    </tr>`).join('');
+  } catch(e) {}
+}
+
+async function deleteCompra(id) {
+  if (!confirm('Deseja excluir este item do registro de entradas?')) return;
+  try {
+    await api('DELETE', `/api/compras/${id}`);
+    showToast('Item excluído com sucesso!');
+    loadCompras();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 // ── INIT ─────────────────────────────────────────────
