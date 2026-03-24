@@ -442,6 +442,7 @@ app.post(
 );
 
 // ── Route: POST /api/agile/webhook (HTML via Zapier) ───────────
+// ── WEBHOOK AGILE PDV (Recebe o email do Zapier em HTML) ──
 app.post('/api/agile/webhook', async (req: Request, res: Response) => {
   try {
     const { body_html, subject } = req.body;
@@ -450,26 +451,59 @@ app.post('/api/agile/webhook', async (req: Request, res: Response) => {
     const $ = cheerio.load(body_html);
     const rows: { descricao: string; qtd: number }[] = [];
 
-    // Tenta extrair a data do Assunto: "Resumo do movimento de 22/03/2026"
+    // Tenta extrair a data do Assunto do email
     const dateMatch = subject?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    let dateStr = new Date().toISOString().split('T')[0]; // fallback hoje
+    let dateStr = new Date().toISOString().split('T')[0];
     if (dateMatch) dateStr = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-    const weekCode = sundayWeekCode(new Date(dateStr + 'T12:00:00'));
+    
+    // Calcula a semana
+    const mDate = new Date(dateStr + 'T12:00:00');
+    const sunday = new Date(mDate);
+    sunday.setDate(mDate.getDate() - mDate.getDay());
+    sunday.setHours(0, 0, 0, 0);
+    const jan1 = new Date(sunday.getFullYear(), 0, 1);
+    const dayOfYear = Math.floor((sunday.getTime() - jan1.getTime()) / 864e5);
+    const weekNum = Math.floor(dayOfYear / 7) + 1;
+    const weekCode = `${sunday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
 
-    // Extrai da tabela do Agile
-    $('table.customTable tr, tr').each((_, el) => {
+    // 1. ISOLAR A TABELA CERTA (Produtos Vendidos Diários)
+    // O Agile manda várias tabelas iguais (Top 20 mensal, etc). 
+    // A tabela de vendas DIÁRIAS é SEMPRE a última do email!
+    const productTables: any[] = [];
+    
+    $('table').each((_, table) => {
+      const firstRow = $(table).find('tr').first().text().toLowerCase();
+      const secondRow = $(table).find('tr').eq(1).text().toLowerCase();
+      
+      if (
+        (firstRow.includes('produto') && firstRow.includes('quantidade')) ||
+        (secondRow.includes('produto') && secondRow.includes('quantidade'))
+      ) {
+        productTables.push(table);
+      }
+    });
+
+    if (productTables.length === 0) return res.status(400).json({ error: 'Nenhuma tabela de produtos encontrada.' });
+
+    // Pega APENAS a última tabela
+    const targetTable = productTables[productTables.length - 1]; 
+
+    // Extrai os itens
+    $(targetTable).find('tr').each((_, el) => {
       const cols = $(el).find('td');
       if (cols.length >= 2) {
         const descricao = $(cols[0]).text().trim();
         const qtd = parseFloat($(cols[1]).text().replace(',', '.'));
-        if (descricao && !isNaN(qtd) && qtd > 0) {
+        
+        if (descricao && descricao.toLowerCase() !== 'produto' && !isNaN(qtd) && qtd > 0) {
           rows.push({ descricao, qtd });
         }
       }
     });
 
-    if (rows.length === 0) return res.status(400).json({ error: 'Nenhum produto encontrado' });
+    if (rows.length === 0) return res.status(400).json({ error: 'Nenhum produto encontrado na tabela diária' });
 
+    // Busca fichas
     const { data: allIngredients } = await supabase.from('recipe_ingredients').select('ingredient, grams_per_portion, recipes(name)');
     const recipeIngMap = new Map<string, { ingredient: string; grams: number }[]>();
 
@@ -478,50 +512,74 @@ app.post('/api/agile/webhook', async (req: Request, res: Response) => {
       if (!recipesField) continue;
       const recipeName = Array.isArray(recipesField) ? recipesField[0]?.name : recipesField.name;
       if (!recipeName) continue;
+      
       const key = recipeName.toLowerCase().trim();
       if (!recipeIngMap.has(key)) recipeIngMap.set(key, []);
       recipeIngMap.get(key)!.push({ ingredient: String(row.ingredient), grams: Number(row.grams_per_portion) });
     }
 
-    let totalPortions = 0;
-    const ingredientTotals: Record<string, number> = {};
+    let dailyPortions = 0;
+    const dailyIngredientTotals: Record<string, number> = {};
     let skipped = 0;
 
     for (const row of rows) {
       const recipe = recipeIngMap.get(row.descricao.toLowerCase());
-      if (!recipe) { skipped++; continue; }
-      totalPortions += row.qtd;
+      if (!recipe) { skipped++; continue; } // Ignora itens sem ficha
+      
+      dailyPortions += row.qtd;
       for (const ing of recipe) {
-        ingredientTotals[ing.ingredient] = (ingredientTotals[ing.ingredient] ?? 0) + (ing.grams * row.qtd);
+        dailyIngredientTotals[ing.ingredient] = (dailyIngredientTotals[ing.ingredient] ?? 0) + (ing.grams * row.qtd);
       }
     }
 
-    if (Object.keys(ingredientTotals).length === 0) return res.status(400).json({ error: 'Nenhum item com ficha processado' });
+    if (Object.keys(dailyIngredientTotals).length === 0) return res.status(400).json({ error: 'Nenhum item vendido no dia possui ficha.' });
 
-    const { data: weekRow } = await supabase.from('weeks').upsert({ week_code: weekCode, total_portions: totalPortions }, { onConflict: 'week_code' }).select('id').single();
-    if (!weekRow) throw new Error('Erro ao criar semana');
+    // 2. LÓGICA DE SOMA (Acumular dias da semana)
+    let { data: existingWeek } = await supabase.from('weeks').select('id, total_portions').eq('week_code', weekCode).single();
+    
+    let finalPortions = dailyPortions;
+    let finalIngredientTotals = { ...dailyIngredientTotals };
 
-    await supabase.from('consumption_records').delete().eq('week_id', weekRow.id);
+    if (existingWeek) {
+      // Se a semana já existe, soma as porções e os ingredientes
+      finalPortions += existingWeek.total_portions;
+      
+      const { data: existingRecords } = await supabase.from('consumption_records').select('ingredient, kg').eq('week_id', existingWeek.id);
+      
+      (existingRecords ?? []).forEach(r => {
+        const existingGrams = Number(r.kg) * 1000;
+        finalIngredientTotals[r.ingredient] = (finalIngredientTotals[r.ingredient] ?? 0) + existingGrams;
+      });
+      
+      // Limpa os antigos para inserir os dados somados
+      await supabase.from('consumption_records').delete().eq('week_id', existingWeek.id);
+    }
 
-    const records = Object.entries(ingredientTotals).map(([ingredient, grams]) => ({
-      week_id: weekRow.id,
+    // Salva a semana com a nova soma
+    const { data: upsertedWeek } = await supabase.from('weeks').upsert({ week_code: weekCode, total_portions: finalPortions }, { onConflict: 'week_code' }).select('id').single();
+    if (!upsertedWeek) throw new Error('Erro ao salvar semana');
+
+    // Salva os ingredientes somados
+    const newRecords = Object.entries(finalIngredientTotals).map(([ingredient, grams]) => ({
+      week_id: upsertedWeek.id,
       ingredient,
       kg: parseFloat((grams / 1000).toFixed(4))
     }));
 
-    await supabase.from('consumption_records').insert(records);
+    await supabase.from('consumption_records').insert(newRecords);
 
+    // Registra o upload automático
     await supabase.from('upload_logs').insert({
       type: 'agile_email',
       filename: `Email Automático: ${subject}`,
       week_code: weekCode,
-      result: `${rows.length - skipped} itens salvos · ${skipped} ignorados`
+      result: `Vendas do dia somadas! ${rows.length - skipped} itens c/ ficha (${skipped} ignorados).`
     });
 
-    return res.json({ success: true, message: `Webhook processou semana ${weekCode} com sucesso.` });
+    return res.json({ success: true, message: `Webhook processou as vendas do dia e atualizou a semana.` });
 
   } catch (err: any) {
-    console.error(err);
+    console.error("Erro no Webhook:", err);
     res.status(500).json({ error: err.message });
   }
 });
