@@ -1206,6 +1206,100 @@ app.delete('/api/inventario/data/:data', async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// ── ESTOQUE EM TEMPO REAL (CRUZAMENTO AUTOMÁTICO INTELIGENTE) ─────────────────────────
+
+app.get('/api/estoque-atual', async (req: Request, res: Response) => {
+  try {
+    const { data: inventarios } = await supabase.from('inventario').select('*').order('data_contagem', { ascending: false });
+    const { data: compras } = await supabase.from('compras').select('*');
+    const { data: consumos } = await supabase.from('consumption_records').select('*');
+    const { data: weeks } = await supabase.from('weeks').select('*');
+
+    const weekDates: Record<number, string> = {};
+    (weeks || []).forEach(w => weekDates[w.id] = w.week_code);
+
+    // ── A MÁGICA DO PADRONIZADOR DE NOMES ──
+    const normalizarNome = (nome: string) => {
+      if (!nome) return 'DESCONHECIDO';
+      let n = nome.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Remove acentos
+      n = n.replace(/[^\w\s]/gi, ' '); // Remove pontuação
+      n = n.replace(/\b\d+\/\d+\b/g, ' '); // Remove frações tipo "4/5" ou "61/70"
+      n = n.replace(/\b(\d+(KG|G|ML|L|LTS|UN|UNID|MM|UP)?)\b/g, ' '); // Remove pesos "1KG", "500G"
+      // Remove adjetivos inúteis para o estoque
+      n = n.replace(/\b(FRESCO|CONGELADO|RESFRIADO|LIMPO|IQF|PCT|PACOTE|CX|CAIXA|UNIDADE|KG|LITRO|GRAMAS|EXTRA|PREMIUM|INTEIRO|PORCIONADO|CORTADO|COZIDO)\b/g, ' ');
+      n = n.replace(/\s+/g, ' ').trim();
+      
+      // Regras de Ouro (Força a barra para os itens mais críticos)
+      if (n.includes('FILE MIGNON') || n.includes('MIGNON')) return 'FILE MIGNON';
+      if (n.includes('SALMAO')) return 'FILE DE SALMAO';
+      if (n.includes('POLPETONE')) return 'POLPETONE';
+      if (n.includes('BATATA') && (n.includes('FRITA') || n.includes('9MM') || n.includes('MCCAIN'))) return 'BATATA FRITA';
+
+      return n;
+    };
+
+    const estoqueMap = new Map<string, any>();
+
+    // 1. Processa Inventário (A Base)
+    (inventarios || []).forEach(i => {
+      const norm = normalizarNome(i.produto);
+      if (!estoqueMap.has(norm)) {
+        estoqueMap.set(norm, { produto: norm, nomes_originais: new Set([i.produto]), data_base: i.data_contagem, saldo_base: Number(i.quantidade), entradas: 0, saidas: 0 });
+      } else {
+        const item = estoqueMap.get(norm);
+        item.nomes_originais.add(i.produto);
+        // Mantém apenas a contagem mais recente
+        if (i.data_contagem > item.data_base) {
+           item.data_base = i.data_contagem;
+           item.saldo_base = Number(i.quantidade);
+        }
+      }
+    });
+
+    // 2. Processa Compras (Soma o que entrou DEPOIS da contagem)
+    (compras || []).forEach(c => {
+      const norm = normalizarNome(c.produto);
+      if (!estoqueMap.has(norm)) {
+        estoqueMap.set(norm, { produto: norm, nomes_originais: new Set([c.produto]), data_base: '2000-01-01', saldo_base: 0, entradas: 0, saidas: 0 });
+      }
+      const item = estoqueMap.get(norm);
+      item.nomes_originais.add(c.produto);
+      
+      if (c.data_compra > item.data_base) {
+        item.entradas += Number(c.quantidade);
+      }
+    });
+
+    // 3. Processa Consumo (Subtrai o que foi vendido DEPOIS da contagem)
+    (consumos || []).forEach(c => {
+      const norm = normalizarNome(c.ingredient);
+      const dataVenda = weekDates[c.week_id];
+      if (!estoqueMap.has(norm)) {
+        estoqueMap.set(norm, { produto: norm, nomes_originais: new Set([c.ingredient]), data_base: '2000-01-01', saldo_base: 0, entradas: 0, saidas: 0 });
+      }
+      const item = estoqueMap.get(norm);
+      item.nomes_originais.add(c.ingredient);
+      
+      if (dataVenda > item.data_base) {
+        item.saidas += Number(c.kg);
+      }
+    });
+
+    // 4. Calcula o Resultado Final
+    const estoqueCalculado = Array.from(estoqueMap.values()).map(item => {
+      item.saldo_atual = item.saldo_base + item.entradas - item.saidas;
+      item.nomes_originais = Array.from(item.nomes_originais).join(' | ');
+      item.data_base = item.data_base === '2000-01-01' ? null : item.data_base;
+      return item;
+    });
+
+    estoqueCalculado.sort((a, b) => a.produto.localeCompare(b.produto));
+    res.json(estoqueCalculado);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Start server ─────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n🍽  Controle de Matéria-Prima rodando na porta ${PORT}`);

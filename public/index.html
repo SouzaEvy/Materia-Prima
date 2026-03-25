@@ -9,60 +9,25 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
   <style>
-    :root {
-      --ink:     #0d1117;
-      --paper:   #f6f8fa;
-      --accent:  #00c896;
-      --accent2: #0284c7;
-      --warn:    #f59e0b;
-      --danger:  #ef4444;
-      --border:  #d0d7de;
-      --muted:   #656d76;
-      --sidebar: #0d1117;
+    :root { 
+      --ink: #0d1117; --paper: #f6f8fa; --accent: #00c896; 
+      --accent2: #0284c7; --warn: #f59e0b; --danger: #ef4444; 
+      --border: #d0d7de; --muted: #656d76; --sidebar: #0d1117; 
     }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; }
+    html, body { height: 100%; overflow: hidden; font-family: 'DM Sans', sans-serif; background: var(--paper); color: var(--ink); display: flex; }
 
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--paper);
-      color: var(--ink);
-      display: flex;
-    }
-
-    /* ── Sidebar ── */
-    #sidebar {
-      width: 248px;
-      min-height: 100vh;
-      background: var(--sidebar);
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-      border-right: 1px solid #21262d;
-      transition: transform .25s ease;
-      z-index: 60;
-    }
-
+    #sidebar { width: 248px; min-height: 100vh; background: var(--sidebar); display: flex; flex-direction: column; flex-shrink: 0; border-right: 1px solid #21262d; transition: transform .25s ease; z-index: 60; }
     .sidebar-logo { padding: 26px 22px 20px; border-bottom: 1px solid #21262d; }
     .sidebar-logo .brand { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 800; color: #fff; letter-spacing: -.02em; line-height: 1.25; }
     .sidebar-logo .sub { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-top: 4px; }
-
     nav { padding: 12px 8px; flex: 1; display: flex; flex-direction: column; gap: 2px; }
 
-    .nav-btn {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px; border-radius: 8px;
-      font-size: 13.5px; font-weight: 500;
-      color: #8b949e; cursor: pointer;
-      transition: background .15s, color .15s;
-      border: none; background: transparent; text-align: left; width: 100%;
-    }
+    .nav-btn { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; font-size: 13.5px; font-weight: 500; color: #8b949e; cursor: pointer; transition: background .15s, color .15s; border: none; background: transparent; text-align: left; width: 100%; }
     .nav-btn:hover { background: #161b22; color: #c9d1d9; }
     .nav-btn.active { background: #1c2733; color: var(--accent); }
     .nav-btn svg { flex-shrink: 0; opacity: .75; }
     .nav-btn.active svg { opacity: 1; }
-
     .nav-divider { border: none; border-top: 1px solid #21262d; margin: 8px 0; }
 
     .sidebar-footer { padding: 14px 16px; border-top: 1px solid #21262d; }
@@ -70,38 +35,25 @@
     .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: blink 2s ease-in-out infinite; }
     @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:.3 } }
 
-    /* ── Main ── */
     #main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; height: 100vh; }
-
-    .topbar {
-      background: #fff;
-      border-bottom: 1px solid var(--border);
-      padding: 13px 28px;
-      display: flex; align-items: center; gap: 12px;
-      position: sticky; top: 0; z-index: 40;
-    }
+    .topbar { background: #fff; border-bottom: 1px solid var(--border); padding: 13px 28px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 40; }
     #menu-toggle { display: none; background: none; border: none; cursor: pointer; color: var(--ink); padding: 4px; }
     .topbar-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; color: var(--ink); }
 
     .section { display: none; padding: 28px; }
     .section.active { display: block; }
-
-    /* ── Cards ── */
     .card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
 
     .stat-card { background: var(--ink); border-radius: 12px; padding: 20px 22px; color: #fff; border: 1px solid #21262d; }
     .stat-val { font-family: 'DM Mono', monospace; font-size: 1.65rem; color: var(--accent); line-height: 1; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -1px; }
     .stat-lbl { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #485460; margin-top: 7px; }
 
-    /* ── Buttons & Upload ── */
     .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: filter .15s, transform .1s; border: none; font-family: 'DM Sans', sans-serif; }
     .btn:active { transform: scale(.97); }
     .btn-green  { background: var(--accent); color: #0d1117; }
     .btn-green:hover  { filter: brightness(1.08); }
     .btn-blue   { background: var(--accent2); color: #fff; }
     .btn-blue:hover   { filter: brightness(1.1); }
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-danger:hover { filter: brightness(1.08); }
     .btn-ghost  { background: transparent; border: 1.5px solid var(--border); color: var(--muted); }
     .btn-ghost:hover  { background: var(--paper); color: var(--ink); }
 
@@ -113,7 +65,6 @@
     .upload-zone .hint { font-size: 12px; font-weight: 400; font-family: 'DM Sans',sans-serif; color: var(--muted); }
     input[type=file] { display: none !important; }
 
-    /* ── Table ── */
     table { width: 100%; border-collapse: collapse; }
     th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; padding: 9px 14px; background: var(--paper); border-bottom: 1px solid var(--border); text-align: left; }
     td { padding: 11px 14px; font-size: 13.5px; border-bottom: 1px solid #f0f4f8; }
@@ -121,7 +72,6 @@
     tbody tr:hover td { background: #fafcff; }
     .mono { font-family: 'DM Mono', monospace; }
 
-    /* ── Alerts & Utils ── */
     .alert { border-radius: 10px; padding: 12px 16px; font-size: 13.5px; font-weight: 500; display: flex; align-items: flex-start; gap: 9px; }
     .alert svg { flex-shrink: 0; margin-top: 1px; }
     .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
@@ -141,7 +91,6 @@
 
     #loading-overlay { position: fixed; inset: 0; background: rgba(13,17,23,.72); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; z-index: 9999; color: #fff; font-family: 'Syne', sans-serif; font-size: 15px; }
     #loading-overlay.show { display: flex; }
-    
     #toast { position: fixed; bottom: 24px; right: 24px; z-index: 9998; padding: 13px 20px; border-radius: 10px; font-weight: 600; font-size: 14px; box-shadow: 0 8px 28px rgba(0,0,0,.18); transform: translateY(20px); opacity: 0; transition: all .25s; pointer-events: none; max-width: 380px; }
     #toast.show { transform: translateY(0); opacity: 1; }
     #toast.success { background: #166534; color: #fff; }
@@ -152,69 +101,59 @@
 </head>
 <body>
 
-<div id="loading-overlay">
-  <div class="spinner"></div>
-  <span id="loading-text">Carregando...</span>
-</div>
-
+<div id="loading-overlay"><div class="spinner"></div><span id="loading-text">Carregando...</span></div>
 <div id="toast"></div>
 
 <aside id="sidebar">
-  <div class="sidebar-logo">
-    <div class="brand">Controle de<br>Matéria-Prima</div>
-    <div class="sub">Restaurante</div>
-  </div>
-
+  <div class="sidebar-logo"><div class="brand">Controle de<br>Matéria-Prima</div><div class="sub">Restaurante</div></div>
   <nav>
     <button class="nav-btn active" onclick="navigate('painel')" data-page="painel">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Painel
     </button>
+    
+    <button class="nav-btn" onclick="navigate('estoque_atual')" data-page="estoque_atual">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline><polyline points="7.5 19.79 7.5 14.6 3 12"></polyline><polyline points="21 12 16.5 14.6 16.5 19.79"></polyline><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg> Estoque em Tempo Real
+    </button>
+
     <button class="nav-btn" onclick="navigate('fichas')" data-page="fichas">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Fichas Técnicas
     </button>
+    
     <button class="nav-btn" onclick="navigate('compras')" data-page="compras">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 7h-3V4c0-1.1-.9-2-2-2H9C7.9 2 7 2.9 7 4v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zM9 4h6v3H9V4z"/></svg> Entrada de Compras
     </button>
+    
     <button class="nav-btn" onclick="navigate('inventario')" data-page="inventario">
-      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg> Contagem de Estoque
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> Contagem Física
     </button>
+    
     <button class="nav-btn" onclick="navigate('historico')" data-page="historico">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Histórico de Consumo
     </button>
+    
     <button class="nav-btn" onclick="navigate('relatorios')" data-page="relatorios">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Relatórios
     </button>
+    
     <button class="nav-btn" onclick="navigate('uploads')" data-page="uploads">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/><circle cx="10" cy="15" r="2"/><path d="M20 17v1a2 2 0 01-2 2H6"/></svg> Logs e Arquivos
     </button>
-
+    
     <hr class="nav-divider" />
-    <button class="nav-btn" onclick="confirmClearAll()" style="color:#ef4444" data-page="">
-      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg> Limpar Todos os Dados
-    </button>
+    <button class="nav-btn" onclick="confirmClearAll()" style="color:#ef4444" data-page=""><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg> Limpar Todos os Dados</button>
   </nav>
-
-  <div class="sidebar-footer">
-    <div class="status-chip"><div class="status-dot"></div><span>API conectada</span></div>
-  </div>
+  <div class="sidebar-footer"><div class="status-chip"><div class="status-dot"></div><span>API conectada</span></div></div>
 </aside>
 
 <div id="main">
   <div class="topbar">
-    <button id="menu-toggle" onclick="toggleSidebar()">
-      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    </button>
+    <button id="menu-toggle" onclick="toggleSidebar()"><svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
     <span class="topbar-title" id="topbar-title">Painel</span>
   </div>
 
   <div class="section active" id="sec-painel" style="padding-bottom:40px">
-    <div id="no-recipes-warn" style="display:none;margin-bottom:20px">
-      <div class="alert alert-warn">
-        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <div>⚠️ <strong>Suba as fichas técnicas primeiro!</strong> Sem receitas cadastradas, não é possível calcular o consumo.</div>
-      </div>
-    </div>
-
+    <div id="no-recipes-warn" style="display:none;margin-bottom:20px"><div class="alert alert-warn"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div>⚠️ <strong>Suba as fichas técnicas primeiro!</strong> Sem receitas cadastradas, não é possível calcular o consumo.</div></div></div>
+    
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:13px;margin-bottom:22px">
       <div class="stat-card"><div class="stat-val" id="dash-compras" style="color:#bbf7d0">—</div><div class="stat-lbl">R$ em compras</div></div>
       <div class="stat-card"><div class="stat-val" id="dash-kg">—</div><div class="stat-lbl">kg consumidos</div></div>
@@ -222,53 +161,65 @@
       <div class="stat-card"><div class="stat-val" id="dash-dias">—</div><div class="stat-lbl">dias registrados</div></div>
       <div class="stat-card"><div class="stat-val" id="dash-fichas">—</div><div class="stat-lbl">fichas técnicas</div></div>
     </div>
-
+    
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
-          <h3 style="font-family:'Syne',sans-serif; font-size:14px; font-weight:700">Top 5 Consumo (kg)</h3>
-          <select id="dash-filter" onchange="loadDashboard()" style="font-size:12px; border-radius:4px; border:1px solid var(--border); padding:2px 5px; outline:none; cursor:pointer">
-            <option value="1">Este Mês</option>
-            <option value="3">3 Meses</option>
-            <option value="6">6 Meses</option>
-            <option value="12" selected>Este Ano</option>
-          </select>
-        </div>
-        <div id="dash-top5"><span style="color:var(--muted);font-size:13px">Sem dados ainda.</span></div>
+      <div class="card"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px"><h3 style="font-family:'Syne',sans-serif; font-size:14px; font-weight:700">Top 5 Consumo (kg)</h3><select id="dash-filter" onchange="loadDashboard()" style="font-size:12px; border-radius:4px; border:1px solid var(--border); padding:2px 5px; outline:none; cursor:pointer"><option value="1">Este Mês</option><option value="3">3 Meses</option><option value="6">6 Meses</option><option value="12" selected>Este Ano</option></select></div><div id="dash-top5"><span style="color:var(--muted);font-size:13px">Sem dados ainda.</span></div></div>
+      <div class="card"><h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">Últimos Dias</h3><div id="dash-recent"><span style="color:var(--muted);font-size:13px">Nenhum dia registrado.</span></div></div>
+    </div>
+  </div>
+
+  <div class="section" id="sec-estoque_atual">
+    <div class="alert alert-info" style="margin-bottom:20px">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div><strong>Agrupamento Inteligente:</strong> O sistema une automaticamente nomes parecidos (ex: "File Mignon Fresco", "Mignon 4/5") num único saldo real.</div>
+    </div>
+    
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:15px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center">
+        <h3 style="font-family:'Syne';font-weight:700;font-size:14px">Estoque Teórico Calculado</h3>
+        <button class="btn btn-ghost" onclick="loadEstoqueAtual()" style="padding:4px 10px; font-size:12px">↻ Atualizar</button>
       </div>
-      <div class="card">
-        <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">Últimos Dias</h3>
-        <div id="dash-recent"><span style="color:var(--muted);font-size:13px">Nenhum dia registrado.</span></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th>Data Base (Contagem)</th>
+              <th style="text-align:right">Saldo Base</th>
+              <th style="text-align:right; color:var(--accent)">+ Entradas (Pós-Contagem)</th>
+              <th style="text-align:right; color:var(--danger)">- Saídas (Pós-Contagem)</th>
+              <th style="text-align:right; font-size:13px; color:var(--ink)">= ESTOQUE ATUAL</th>
+            </tr>
+          </thead>
+          <tbody id="estoque-atual-tbody">
+            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Carregando dados...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 
   <div class="section" id="sec-inventario">
     <div id="inv-alert" style="margin-bottom:16px"></div>
-    
     <div class="card" style="margin-bottom:18px">
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px">Data da Contagem</div>
       <input type="date" id="inv-data" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none" />
       <span style="font-size:12px;color:var(--muted);margin-left:10px">Obrigatório escolher o dia do estoque.</span>
     </div>
-
-    <input type="file" id="inv-file" accept=".csv" multiple />
+    
+    <input type="file" id="inv-file" accept=".csv, .xlsx, .xlsm" multiple />
     <label for="inv-file" class="upload-zone green" style="margin-bottom:24px">
       <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Subir CSVs de Contagem (Semanail ou Quinzenal)
-      <span class="hint">Identifica automaticamente o padrão das tabelas e ignora as abas de Dashboard/Resumo</span>
+      Subir Planilhas de Contagem (Semanail ou Quinzenal)
+      <span class="hint">O sistema atualiza a "Data Base" dos produtos com esta contagem</span>
     </label>
-
+    
     <div class="card" style="padding:0;overflow:hidden">
       <div style="padding:15px; border-bottom:1px solid var(--border)"><h3 style="font-family:'Syne';font-weight:700;font-size:14px">Últimos Estoques Contados</h3></div>
       <div style="overflow-x:auto">
         <table>
-          <thead>
-            <tr><th>Data</th><th>Produto</th><th>Quantidade Contada</th></tr>
-          </thead>
-          <tbody id="inv-tbody">
-            <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhum estoque registrado.</td></tr>
-          </tbody>
+          <thead><tr><th>Data</th><th>Produto Original</th><th>Quantidade Contada</th></tr></thead>
+          <tbody id="inv-tbody"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhum estoque registrado.</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -276,137 +227,45 @@
 
   <div class="section" id="sec-compras">
     <div id="compras-alert" style="margin-bottom:16px"></div>
-    
     <input type="file" id="compras-file" accept=".pdf" />
-    <label for="compras-file" class="upload-zone" style="margin-bottom:24px; border-color:var(--accent2); color:var(--accent2)">
-      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 
-      Subir PDF de Pedidos/Notas 
-      <span class="hint">Extrai Produto, Quantidade e Valor automaticamente</span>
-    </label>
-    
+    <label for="compras-file" class="upload-zone" style="margin-bottom:24px; border-color:var(--accent2); color:var(--accent2)"><svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Subir PDF de Pedidos/Notas <span class="hint">Ele extrai Produto, Quantidade e Valor automaticamente</span></label>
     <div class="card" style="padding:0;overflow:hidden">
       <div style="padding:15px; border-bottom:1px solid var(--border)"><h3 style="font-family:'Syne';font-weight:700;font-size:14px">Últimas Entradas</h3></div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead>
-            <tr><th style="width:40px"></th><th>Data</th><th>Produto</th><th>Quantidade</th><th>Valor Un.</th><th>Total</th></tr>
-          </thead>
-          <tbody id="compras-tbody">
-            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <div style="overflow-x:auto"><table><thead><tr><th style="width:40px"></th><th>Data</th><th>Produto</th><th>Quantidade</th><th>Valor Un.</th><th>Total</th></tr></thead><tbody id="compras-tbody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr></tbody></table></div>
     </div>
   </div>
 
   <div class="section" id="sec-fichas">
     <div id="fichas-alert" style="margin-bottom:16px"></div>
-    
     <input type="file" id="fichas-file" accept=".csv" />
-    <label for="fichas-file" class="upload-zone" style="margin-bottom:24px">
-      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> 
-      Subir CSV das Fichas Técnicas 
-      <span class="hint">Formato: Prato;Ingrediente;GramasPorPorcao</span>
-    </label>
-    
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <h3 style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700">Receitas Cadastradas</h3>
-      <span id="fichas-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0</span>
-    </div>
-    
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Prato</th><th>Ação</th><th>Ingrediente</th><th>Gramas / Porção</th></tr></thead>
-          <tbody id="fichas-tbody">
-            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <label for="fichas-file" class="upload-zone" style="margin-bottom:24px"><svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> Subir CSV das Fichas Técnicas <span class="hint">Formato: Prato;Ingrediente;GramasPorPorcao</span></label>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h3 style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700">Receitas Cadastradas</h3><span id="fichas-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0</span></div>
+    <div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table><thead><tr><th>Prato</th><th>Ação</th><th>Ingrediente</th><th>Gramas / Porção</th></tr></thead><tbody id="fichas-tbody"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr></tbody></table></div></div>
   </div>
 
   <div class="section" id="sec-historico">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Histórico de Dias de Consumo</h2>
-      <span id="hist-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0 dias</span>
-    </div>
-    
-    <div id="hist-grid" style="display:grid;gap:11px">
-      <div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhum dia registrado ainda. As vendas entrarão aqui automaticamente.</div>
-    </div>
-    
-    <div id="week-detail" class="card" style="display:none;margin-top:20px;padding:0;overflow:hidden">
-      <div style="padding:15px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-        <h3 id="week-detail-title" style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700"></h3>
-        <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px" onclick="document.getElementById('week-detail').style.display='none'">Fechar</button>
-      </div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Ingrediente</th><th>Total kg</th></tr></thead>
-          <tbody id="week-detail-tbody"></tbody>
-        </table>
-      </div>
-    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Histórico de Dias de Consumo</h2><span id="hist-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0 dias</span></div>
+    <div id="hist-grid" style="display:grid;gap:11px"><div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhum dia registrado ainda. As vendas entrarão aqui automaticamente.</div></div>
+    <div id="week-detail" class="card" style="display:none;margin-top:20px;padding:0;overflow:hidden"><div style="padding:15px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><h3 id="week-detail-title" style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700"></h3><button class="btn btn-ghost" style="padding:5px 12px;font-size:12px" onclick="document.getElementById('week-detail').style.display='none'">Fechar</button></div><div style="overflow-x:auto"><table><thead><tr><th>Ingrediente</th><th>Total kg</th></tr></thead><tbody id="week-detail-tbody"></tbody></table></div></div>
   </div>
 
   <div class="section" id="sec-relatorios">
     <div class="card" style="margin-bottom:18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
-      <div>
-        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px">Data Inicial</label>
-        <input type="date" id="rel-start" class="input-field" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none" />
-      </div>
-      <div>
-        <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px">Data Final</label>
-        <input type="date" id="rel-end" class="input-field" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none" />
-      </div>
-      <div style="display:flex;gap:8px;align-items:flex-end;padding-top:18px">
-        <button class="btn btn-blue" onclick="loadReport()">Filtrar Período</button>
-        <button class="btn btn-ghost" onclick="clearReport()">Limpar</button>
-        <button class="btn btn-green" onclick="exportRelCSV()">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar CSV
-        </button>
-      </div>
+      <div><label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px">Data Inicial</label><input type="date" id="rel-start" class="input-field" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none" /></div>
+      <div><label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:block;margin-bottom:4px">Data Final</label><input type="date" id="rel-end" class="input-field" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;font-family:'DM Sans',sans-serif;outline:none" /></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;padding-top:18px"><button class="btn btn-blue" onclick="loadReport()">Filtrar Período</button><button class="btn btn-ghost" onclick="clearReport()">Limpar</button><button class="btn btn-green" onclick="exportRelCSV()"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Exportar CSV</button></div>
     </div>
-    
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
       <div class="stat-card"><div class="stat-val mono" id="rel-total-kg">—</div><div class="stat-lbl">kg total consumido no período</div></div>
       <div class="stat-card"><div class="stat-val mono" id="rel-porcoes">—</div><div class="stat-lbl">porções produzidas</div></div>
     </div>
-    
-    <div class="card" style="margin-bottom:18px">
-      <h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">kg por Ingrediente</h3>
-      <div class="chart-wrap"><canvas id="chart-bar"></canvas></div>
-    </div>
-    
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Ingrediente</th><th>kg usado</th><th>% do total</th></tr></thead>
-          <tbody id="rel-tbody">
-            <tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Selecione um período para ver o relatório.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <div class="card" style="margin-bottom:18px"><h3 style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:14px">kg por Ingrediente</h3><div class="chart-wrap"><canvas id="chart-bar"></canvas></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table><thead><tr><th>Ingrediente</th><th>kg usado</th><th>% do total</th></tr></thead><tbody id="rel-tbody"><tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Selecione um período para ver o relatório.</td></tr></tbody></table></div></div>
   </div>
 
   <div class="section" id="sec-uploads">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
-      <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Arquivos e Integrações</h2>
-      <span id="uploads-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0 registros</span>
-    </div>
-    
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Ação</th><th>Data/Hora</th><th>Tipo</th><th>Origem</th><th>Período/Dia</th><th>Resultado</th></tr></thead>
-          <tbody id="uploads-tbody">
-            <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhum registro ainda.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Arquivos e Integrações</h2><span id="uploads-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0 registros</span></div>
+    <div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table><thead><tr><th>Ação</th><th>Data/Hora</th><th>Tipo</th><th>Origem</th><th>Período/Dia</th><th>Resultado</th></tr></thead><tbody id="uploads-tbody"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhum registro ainda.</td></tr></tbody></table></div></div>
   </div>
 
 </div>
@@ -418,11 +277,12 @@ let relCurrentData = [];
 
 const pageTitles = { 
   painel: 'Painel Geral', 
+  estoque_atual: 'Estoque em Tempo Real', 
   fichas: 'Fichas Técnicas', 
   compras: 'Entrada de Compras', 
-  inventario: 'Contagem de Estoque', 
+  inventario: 'Contagem Física', 
   historico: 'Histórico Diário de Consumo', 
-  relatorios: 'Relatórios Flexíveis', 
+  relatorios:'Relatórios Flexíveis', 
   uploads: 'Logs de Integração' 
 };
 
@@ -430,16 +290,14 @@ function navigate(page) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('sec-' + page).classList.add('active');
-  
   const btn = document.querySelector(`[data-page="${page}"]`); 
   if (btn) btn.classList.add('active');
-  
   document.getElementById('topbar-title').textContent = pageTitles[page] ?? '';
   document.getElementById('sidebar').classList.remove('open'); 
   currentPage = page;
 
-  // Carrega os dados dependendo da tela
   if (page === 'painel') loadDashboard();
+  if (page === 'estoque_atual') loadEstoqueAtual();
   if (page === 'fichas') loadFichas();
   if (page === 'compras') loadCompras();
   if (page === 'inventario') loadInventario();
@@ -452,24 +310,20 @@ function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open'); 
 }
 
-// Helper para fazer requisições à API
 async function api(method, path, body) {
   const opts = { method, headers: {} };
-  
   if (body instanceof FormData) {
-    opts.body = body;
+    opts.body = body; 
   } else if (body) { 
     opts.headers['Content-Type'] = 'application/json'; 
     opts.body = JSON.stringify(body); 
   }
-  
   const res = await fetch(path, opts); 
   const data = await res.json().catch(() => ({ error: 'Resposta inválida do servidor' }));
   if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`); 
   return data;
 }
 
-// Helpers Visuais
 let toastTimer;
 function showToast(msg, type = 'success') { 
   const t = document.getElementById('toast'); 
@@ -480,8 +334,7 @@ function showToast(msg, type = 'success') {
 }
 
 function setLoading(show, text = 'Processando...') { 
-  const overlay = document.getElementById('loading-overlay');
-  overlay.classList.toggle('show', show); 
+  document.getElementById('loading-overlay').classList.toggle('show', show); 
   document.getElementById('loading-text').textContent = text; 
 }
 
@@ -492,17 +345,46 @@ function showAlert(elId, type, html) {
 }
 
 function fmtDateBR(code) { 
-  if (!code) return ''; 
+  if(!code) return ''; 
   const partes = code.split('-'); 
   if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`; 
   return code; 
 }
 
-// ── LÓGICA DO INVENTÁRIO ──────────────────────────────────
+// ── LÓGICA: ESTOQUE EM TEMPO REAL ──
+async function loadEstoqueAtual() {
+  const tbody = document.getElementById('estoque-atual-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Calculando o cruzamento de estoque...</td></tr>';
+  try {
+    const dados = await api('GET', '/api/estoque-atual');
+    if (!dados.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Sem dados suficientes para calcular o estoque. Suba notas, vendas ou inventário.</td></tr>';
+      return;
+    }
+    
+    tbody.innerHTML = dados.map(d => {
+      const isNegativo = d.saldo_atual < 0;
+      return `<tr>
+        <td style="font-weight:600; color:var(--ink)">
+          ${d.produto}
+          <div style="font-size:10px; color:var(--muted); font-weight:400" title="${d.nomes_originais}">ℹ️ Ver agrupados</div>
+        </td>
+        <td class="mono" style="color:var(--muted); font-size:12px">${d.data_base ? fmtDateBR(d.data_base) : 'Nunca Contado'}</td>
+        <td class="mono" style="text-align:right">${d.saldo_base.toFixed(2)}</td>
+        <td class="mono" style="text-align:right; color:var(--accent)">${d.entradas > 0 ? '+'+d.entradas.toFixed(2) : '-'}</td>
+        <td class="mono" style="text-align:right; color:var(--danger)">${d.saidas > 0 ? '-'+d.saidas.toFixed(2) : '-'}</td>
+        <td class="mono" style="text-align:right; font-weight:700; font-size:14px; color:${isNegativo ? 'var(--danger)' : 'var(--ink)'}">${d.saldo_atual.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--danger);padding:28px">Erro ao calcular o estoque: ${e.message}</td></tr>`;
+  }
+}
+
+// ── LÓGICA: INVENTÁRIO ──
 document.getElementById('inv-file').addEventListener('change', async function () {
   if (!this.files.length) return;
   const dt = document.getElementById('inv-data').value;
-  
   if (!dt) { 
     showAlert('inv-alert', 'error', '⚠️ Você precisa selecionar a Data da Contagem primeiro!'); 
     this.value = ''; 
@@ -511,9 +393,7 @@ document.getElementById('inv-file').addEventListener('change', async function ()
   
   setLoading(true, 'Lendo os arquivos de contagem...');
   const fd = new FormData();
-  for (let i = 0; i < this.files.length; i++) { 
-    fd.append('files', this.files[i]); 
-  }
+  for (let i = 0; i < this.files.length; i++) { fd.append('files', this.files[i]); }
   
   try {
     const data = await api('POST', `/api/inventario/upload?date=${dt}`, fd);
@@ -533,7 +413,6 @@ async function loadInventario() {
   try {
     const invs = await api('GET', '/api/inventario');
     const tbody = document.getElementById('inv-tbody');
-    
     if (!invs.length) { 
       tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhum estoque registrado.</td></tr>'; 
       return; 
@@ -544,8 +423,6 @@ async function loadInventario() {
     
     invs.forEach(c => {
       const dataBR = fmtDateBR(c.data_contagem);
-      
-      // Agrupa pelo lote
       if (dataBR !== currentDate) {
         html += `<tr style="background:#f0f9ff; border-top:2px solid var(--border); border-bottom:1px solid var(--border)">
           <td colspan="3" style="padding:10px 14px;">
@@ -557,36 +434,31 @@ async function loadInventario() {
         </tr>`; 
         currentDate = dataBR;
       }
-      
       html += `<tr>
         <td class="mono" style="font-size:12px; color:var(--muted)">${dataBR}</td>
         <td style="font-weight:500">${c.produto}</td>
         <td class="mono" style="color:var(--ink); font-weight:600">${c.quantidade}</td>
       </tr>`;
     });
-    
     tbody.innerHTML = html;
   } catch(e) {}
 }
 
 async function deleteInventarioData(dataIso, dataBR) { 
-  if (!confirm(`⚠️ Isso vai excluir TODO o estoque contado no dia ${dataBR}. Continuar?`)) return; 
+  if (!confirm(`⚠️ Excluir TODO o estoque do dia ${dataBR}?`)) return; 
   try { 
     await api('DELETE', `/api/inventario/data/${dataIso}`); 
     showToast(`Lote excluído!`); 
     loadInventario(); 
-  } catch (err) { 
-    showToast(err.message, 'error'); 
-  } 
+  } catch (err) { showToast(err.message, 'error'); } 
 }
 
-// ── LÓGICA DE COMPRAS ──────────────────────────────────
+// ── LÓGICA: COMPRAS E ESTOQUE (PDF) ──
 document.getElementById('compras-file').addEventListener('change', async function () { 
   if (!this.files[0]) return; 
   setLoading(true, 'Lendo o PDF de compras...'); 
   const fd = new FormData(); 
   fd.append('file', this.files[0]); 
-  
   try { 
     const data = await api('POST', '/api/compras/upload', fd); 
     showAlert('compras-alert', 'success', data.message); 
@@ -606,80 +478,43 @@ async function loadCompras() {
   try { 
     const compras = await api('GET', '/api/compras'); 
     const tbody = document.getElementById('compras-tbody'); 
-    
     if (!compras.length) { 
       tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr>'; 
       return; 
     } 
-    
-    let html = ''; 
-    let currentDate = null; 
-    
+    let html = ''; let currentDate = null; 
     compras.forEach(c => { 
       const dataBR = fmtDateBR(c.data_compra); 
-      
-      // Agrupa os itens do mesmo dia
       if (dataBR !== currentDate) { 
-        html += `<tr style="background:#f0f9ff; border-top:2px solid var(--border); border-bottom:1px solid var(--border)">
-          <td colspan="6" style="padding:10px 14px;">
-            <div style="display:flex; justify-content:space-between; align-items:center">
-              <span style="font-weight:700; font-family:'Syne',sans-serif; color:var(--accent2)">📦 Lote do dia ${dataBR}</span>
-              <button onclick="deleteComprasPorData('${c.data_compra}', '${dataBR}')" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:12px;font-weight:600;">🗑️ Excluir Lote</button>
-            </div>
-          </td>
-        </tr>`; 
+        html += `<tr style="background:#f0f9ff; border-top:2px solid var(--border); border-bottom:1px solid var(--border)"><td colspan="6" style="padding:10px 14px;"><div style="display:flex; justify-content:space-between; align-items:center"><span style="font-weight:700; font-family:'Syne',sans-serif; color:var(--accent2)">📦 Lote do dia ${dataBR}</span><button onclick="deleteComprasPorData('${c.data_compra}', '${dataBR}')" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:12px;font-weight:600;">🗑️ Excluir Lote</button></div></td></tr>`; 
         currentDate = dataBR; 
       } 
-      
-      html += `<tr>
-        <td style="text-align:center">
-          <button onclick="deleteCompra('${c.id}')" title="Excluir Item" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;padding:4px">🗑️</button>
-        </td>
-        <td class="mono" style="font-size:12px; color:var(--muted)">${dataBR}</td>
-        <td style="font-weight:500">${c.produto}</td>
-        <td class="mono">${c.quantidade}</td>
-        <td class="mono" style="color:var(--muted)">R$ ${Number(c.valor_unitario).toFixed(2)}</td>
-        <td class="mono" style="font-weight:600; color:var(--ink)">R$ ${Number(c.valor_total).toFixed(2)}</td>
-      </tr>`; 
+      html += `<tr><td style="text-align:center"><button onclick="deleteCompra('${c.id}')" title="Excluir Item" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;padding:4px">🗑️</button></td><td class="mono" style="font-size:12px; color:var(--muted)">${dataBR}</td><td style="font-weight:500">${c.produto}</td><td class="mono">${c.quantidade}</td><td class="mono" style="color:var(--muted)">R$ ${Number(c.valor_unitario).toFixed(2)}</td><td class="mono" style="font-weight:600; color:var(--ink)">R$ ${Number(c.valor_total).toFixed(2)}</td></tr>`; 
     }); 
-    
     tbody.innerHTML = html; 
   } catch(e) {} 
 }
 
 async function deleteCompra(id) { 
   if (!confirm('Deseja excluir este item?')) return; 
-  try { 
-    await api('DELETE', `/api/compras/${id}`); 
-    showToast('Item excluído!'); 
-    loadCompras(); 
-    loadDashboard(); 
-  } catch (err) {} 
+  try { await api('DELETE', `/api/compras/${id}`); showToast('Item excluído!'); loadCompras(); loadDashboard(); } catch (err) {} 
 }
 
 async function deleteComprasPorData(dataIso, dataBR) { 
   if (!confirm(`⚠️ Isso vai excluir TODOS os itens da nota do dia ${dataBR}. Continuar?`)) return; 
-  try { 
-    await api('DELETE', `/api/compras/data/${dataIso}`); 
-    showToast(`Lote excluído!`); 
-    loadCompras(); 
-    loadDashboard(); 
-  } catch (err) {} 
+  try { await api('DELETE', `/api/compras/data/${dataIso}`); showToast(`Lote excluído!`); loadCompras(); loadDashboard(); } catch (err) {} 
 }
 
-
-// ── LÓGICA DO DASHBOARD ─────────────────────────────
+// ── LÓGICA: DASHBOARD ──
 async function loadDashboard() { 
   try { 
     const m = document.getElementById('dash-filter')?.value || 12; 
     const d = await api('GET', `/api/dashboard?months=${m}`); 
-    
-    document.getElementById('dash-compras').textContent = 'R$ ' + (d.total_compras || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2}); 
+    document.getElementById('dash-compras').textContent = 'R$ ' + (d.total_compras||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); 
     document.getElementById('dash-kg').textContent = d.total_kg.toFixed(2); 
     document.getElementById('dash-porcoes').textContent = d.total_portions; 
     document.getElementById('dash-dias').textContent = d.total_weeks; 
     document.getElementById('dash-fichas').textContent = d.recipe_count; 
-    
     document.getElementById('no-recipes-warn').style.display = d.recipe_count === 0 ? 'block' : 'none'; 
     
     const top5 = document.getElementById('dash-top5'); 
@@ -687,108 +522,64 @@ async function loadDashboard() {
       top5.innerHTML = '<span style="color:var(--muted);font-size:13px">Sem dados.</span>'; 
     } else { 
       const max = d.top5_ingredients[0].kg; 
-      top5.innerHTML = d.top5_ingredients.map((i, idx) => `
-        <div style="margin-bottom:13px">
-          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
-            <span style="font-weight:600">${idx+1}. ${i.ingredient}</span>
-            <span class="mono" style="color:var(--muted)">${i.kg.toFixed(2)} kg</span>
-          </div>
-          <div class="prog-wrap"><div class="prog-bar" style="width:${(i.kg/max*100).toFixed(0)}%"></div></div>
-        </div>
-      `).join('');
+      top5.innerHTML = d.top5_ingredients.map((i,idx)=>`<div style="margin-bottom:13px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px"><span style="font-weight:600">${idx+1}. ${i.ingredient}</span><span class="mono" style="color:var(--muted)">${i.kg.toFixed(2)} kg</span></div><div class="prog-wrap"><div class="prog-bar" style="width:${(i.kg/max*100).toFixed(0)}%"></div></div></div>`).join('');
     } 
     
     const rec = document.getElementById('dash-recent'); 
     if(!d.recent_weeks.length) {
       rec.innerHTML = '<span style="color:var(--muted);font-size:13px">Nenhum dia registrado.</span>'; 
     } else { 
-      rec.innerHTML = d.recent_weeks.map(w => `
-        <div class="week-card" style="margin-bottom:9px" onclick="navigate('historico')">
-          <div class="week-badge">${w.week_code}</div>
-          <div style="font-size:14px;font-weight:600;font-family:'Syne',sans-serif">Dia ${fmtDateBR(w.week_code)}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:3px">${w.total_portions} porções · ${w.total_kg.toFixed(2)} kg consumidos</div>
-        </div>
-      `).join('');
+      rec.innerHTML = d.recent_weeks.map(w => `<div class="week-card" style="margin-bottom:9px" onclick="navigate('historico')"><div class="week-badge">${w.week_code}</div><div style="font-size:14px;font-weight:600;font-family:'Syne',sans-serif">Dia ${fmtDateBR(w.week_code)}</div><div style="font-size:12px;color:var(--muted);margin-top:3px">${w.total_portions} porções · ${w.total_kg.toFixed(2)} kg consumidos</div></div>`).join('');
     } 
   } catch (e) {} 
 }
 
-// ── LÓGICA DE FICHAS TÉCNICAS ──────────────────────────
+// ── LÓGICA: FICHAS TÉCNICAS ──
 document.getElementById('fichas-file').addEventListener('change', async function () { 
   if (!this.files[0]) return; 
   setLoading(true, 'Lendo fichas...'); 
   const fd = new FormData(); 
   fd.append('file', this.files[0]); 
-  
   try { 
     const data = await api('POST', '/api/recipes/upload', fd); 
     showToast(data.message); 
     loadFichas(); 
-  } catch (err) { 
-    showToast(err.message, 'error'); 
-  } finally { 
-    setLoading(false); 
-    this.value = ''; 
-  }
+  } catch (err) { showToast(err.message, 'error'); } 
+  finally { setLoading(false); this.value = ''; }
 });
 
 async function loadFichas() { 
   try { 
     const rows = await api('GET', '/api/recipes/list'); 
     const tbody = document.getElementById('fichas-tbody'); 
-    
     if (!rows.length) { 
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:28px">Nenhuma ficha cadastrada.</td></tr>'; 
       document.getElementById('fichas-count').textContent = '0'; 
       return; 
     } 
-    
     let html = '', lastDish = null, dishCount = 0; 
     rows.forEach(r => { 
       const isNew = r.dish !== lastDish; 
       if (isNew) dishCount++; 
-      
-      html += `<tr>
-        <td style="font-weight:${isNew ? 600 : 400};color:${isNew ? 'var(--ink)' : 'var(--muted)'}">${isNew ? r.dish : ''}</td>
-        <td style="width:50px;text-align:center">${isNew ? `<button onclick="deleteRecipe('${r.dish}')" style="background:none;border:none;cursor:pointer;color:var(--danger)">Excluir</button>` : ''}</td>
-        <td>${r.ingredient}</td>
-        <td class="mono">${r.grams_per_portion}g</td>
-      </tr>`; 
-      
+      html += `<tr><td style="font-weight:${isNew?600:400};color:${isNew?'var(--ink)':'var(--muted)'}">${isNew?r.dish:''}</td><td style="width:50px;text-align:center">${isNew?`<button onclick="deleteRecipe('${r.dish}')" style="background:none;border:none;cursor:pointer;color:var(--danger)">Excluir</button>`:''}</td><td>${r.ingredient}</td><td class="mono">${r.grams_per_portion}g</td></tr>`; 
       lastDish = r.dish; 
     }); 
-    
     tbody.innerHTML = html; 
     document.getElementById('fichas-count').textContent = `${dishCount} pratos, ${rows.length} ingredientes`; 
-  } catch (e) {} 
+  } catch (e) { } 
 }
 
-// ── LÓGICA DO HISTÓRICO ───────────────────────────────
+// ── LÓGICA: HISTÓRICO DE DIAS ──
 async function loadHistorico() { 
   try { 
     const weeks = await api('GET', '/api/weeks'); 
     const grid = document.getElementById('hist-grid'); 
     document.getElementById('hist-count').textContent = weeks.length + ' dias registrados'; 
-    
     if (!weeks.length) { 
       grid.innerHTML = '<div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhum dia registrado. As vendas entrarão aqui automaticamente.</div>'; 
       return; 
     } 
-    
-    grid.innerHTML = weeks.map(w => `
-      <div class="week-card" style="display:flex; justify-content:space-between; align-items:center;">
-        <div onclick="openWeekDetail('${w.week_code}')" style="flex:1; cursor:pointer;">
-          <div class="week-badge">${w.week_code}</div>
-          <div style="font-size:15px;font-weight:700;font-family:'Syne',sans-serif;margin-top:3px">${fmtDateBR(w.week_code)}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:4px">${w.total_portions} porções</div>
-        </div>
-        <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end;">
-          <button onclick="deleteWeek('${w.week_code}')" title="Excluir" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;margin-bottom:8px">🗑️</button>
-          <div class="mono" style="font-size:18px;font-weight:600;color:var(--accent)">${w.total_kg.toFixed(2)}</div>
-          <div style="font-size:11px;color:var(--muted)">kg</div>
-        </div>
-      </div>
-    `).join(''); 
+    grid.innerHTML = weeks.map(w => `<div class="week-card" style="display:flex; justify-content:space-between; align-items:center;"><div onclick="openWeekDetail('${w.week_code}')" style="flex:1; cursor:pointer;"><div class="week-badge">${w.week_code}</div><div style="font-size:15px;font-weight:700;font-family:'Syne',sans-serif;margin-top:3px">${fmtDateBR(w.week_code)}</div><div style="font-size:12px;color:var(--muted);margin-top:4px">${w.total_portions} porções</div></div><div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end;"><button onclick="deleteWeek('${w.week_code}')" title="Excluir" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;margin-bottom:8px">🗑️</button><div class="mono" style="font-size:18px;font-weight:600;color:var(--accent)">${w.total_kg.toFixed(2)}</div><div style="font-size:11px;color:var(--muted)">kg</div></div></div>`).join(''); 
   } catch (e) {} 
 }
 
@@ -802,19 +593,17 @@ async function openWeekDetail(weekCode) {
   } catch (e) {} 
 }
 
-// ── LÓGICA DE RELATÓRIOS ──────────────────────────────
+// ── LÓGICA: RELATÓRIOS ──
 async function loadReport() { 
   const s = document.getElementById('rel-start').value;
   const e = document.getElementById('rel-end').value; 
   let u = '/api/reports'; 
-  
   if(s || e){ 
     const p = new URLSearchParams(); 
     if(s) p.append('start', s); 
     if(e) p.append('end', e); 
     u += '?' + p.toString(); 
   } 
-  
   try { 
     const data = await api('GET', u); 
     relCurrentData = data.records || []; 
@@ -823,152 +612,60 @@ async function loadReport() {
     
     const tbody = document.getElementById('rel-tbody'); 
     if(!relCurrentData.length) {
-      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhum dado encontrado para as datas.</td></tr>'; 
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:28px">Nenhum dado.</td></tr>'; 
     } else {
       tbody.innerHTML = relCurrentData.map(r => {
         const pct = data.total_kg > 0 ? (r.kg / data.total_kg * 100).toFixed(1) : '0.0'; 
-        return `<tr>
-          <td style="font-weight:500">${r.ingredient}</td>
-          <td class="mono">${r.kg.toFixed(3)}</td>
-          <td>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="prog-wrap" style="flex:1"><div class="prog-bar" style="width:${pct}%;background:var(--accent2)"></div></div>
-              <span style="font-size:12px;font-weight:600;color:var(--muted);min-width:38px;text-align:right">${pct}%</span>
-            </div>
-          </td>
-        </tr>`;
-      }).join('');
+        return `<tr><td style="font-weight:500">${r.ingredient}</td><td class="mono">${r.kg.toFixed(3)}</td><td><div style="display:flex;align-items:center;gap:8px"><div class="prog-wrap" style="flex:1"><div class="prog-bar" style="width:${pct}%;background:var(--accent2)"></div></div><span style="font-size:12px;font-weight:600;color:var(--muted);min-width:38px;text-align:right">${pct}%</span></div></td></tr>`;
+      }).join(''); 
     }
     
-    // Gráfico Chart.js
     if(barChart) barChart.destroy(); 
     const top = relCurrentData.slice(0, 15); 
     barChart = new Chart(document.getElementById('chart-bar').getContext('2d'), { 
-      type: 'bar', 
-      data: {
-        labels: top.map(r => r.ingredient), 
-        datasets: [{ data: top.map(r => r.kg), backgroundColor: '#00c896', borderRadius: 6 }]
-      }, 
-      options: {
-        responsive: true, 
-        maintainAspectRatio: false, 
-        plugins: { legend: { display: false } }, 
-        scales: { 
-          y: { beginAtZero: true, grid: { color: '#f0f4f8' } }, 
-          x: { grid: { display: false } } 
-        }
-      }
+      type:'bar', 
+      data:{ labels: top.map(r=>r.ingredient), datasets:[{data:top.map(r=>r.kg), backgroundColor:'#00c896', borderRadius:6}] }, 
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, grid:{color:'#f0f4f8'}}, x:{grid:{display:false}}} }
     }); 
   } catch (err) {} 
 }
 
-function clearReport() { 
-  document.getElementById('rel-start').value = ''; 
-  document.getElementById('rel-end').value = ''; 
-  loadReport(); 
-}
-
+function clearReport() { document.getElementById('rel-start').value = ''; document.getElementById('rel-end').value = ''; loadReport(); }
 function exportRelCSV() { 
-  if(!relCurrentData.length){ 
-    showToast('Sem dados', 'error'); 
-    return; 
-  } 
-  const tot = relCurrentData.reduce((s, r) => s + r.kg, 0); 
+  if(!relCurrentData.length) { showToast('Sem dados','error'); return; } 
+  const tot = relCurrentData.reduce((s,r)=>s+r.kg,0); 
   let csv = 'Ingrediente;kg usado;% do total\n'; 
-  relCurrentData.forEach(r => { 
-    csv += `${r.ingredient};${r.kg.toFixed(3)};${(r.kg/tot*100).toFixed(1)}%\n`; 
-  }); 
+  relCurrentData.forEach(r => { csv += `${r.ingredient};${r.kg.toFixed(3)};${(r.kg/tot*100).toFixed(1)}%\n`; }); 
   csv += `\nTOTAL;${tot.toFixed(3)};100%\n`; 
-  
-  const b = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+  const b = new Blob([csv], {type:'text/csv;charset=utf-8;'}); 
   const u = URL.createObjectURL(b); 
   const a = document.createElement('a'); 
-  a.href = u; 
-  a.download = 'relatorio.csv'; 
-  a.click(); 
+  a.href = u; a.download = 'relatorio.csv'; a.click(); 
 }
 
-// ── LÓGICA DE UPLOADS E REGISTROS ─────────────────────
+// ── LÓGICA: UPLOADS E GERAL ──
 async function loadUploads() { 
   try { 
     const logs = await api('GET', '/api/upload-logs'); 
     const tb = document.getElementById('uploads-tbody'); 
     document.getElementById('uploads-count').textContent = logs.length + ' registros'; 
-    
-    if(!logs.length) { 
-      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhum registro.</td></tr>'; 
-      return; 
-    } 
-    
-    const badges = { 
-      fichas: 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe', 
-      saidas: 'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0', 
-      agile_email: 'background:#fef2f2;color:#991b1b;border:1px solid #fecaca', 
-      compras: 'background:#fdf4ff;color:#86198f;border:1px solid #f5d0fe', 
-      inventario: 'background:#fffbeb;color:#92400e;border:1px solid #fde68a' 
-    }; 
-    const labels = { 
-      fichas: 'Fichas Técnicas', 
-      saidas: 'Saídas', 
-      agile_email: 'Integração Agile', 
-      compras: 'Entrada Compras', 
-      inventario: 'Estoque/Inventário' 
-    }; 
-    
+    if(!logs.length) { tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">Nenhum registro.</td></tr>'; return; } 
+    const badges = { fichas:'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe', saidas:'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0', agile_email:'background:#fef2f2;color:#991b1b;border:1px solid #fecaca', compras:'background:#fdf4ff;color:#86198f;border:1px solid #f5d0fe', inventario:'background:#fffbeb;color:#92400e;border:1px solid #fde68a' }; 
+    const labels = { fichas:'Fichas Técnicas', saidas:'Saídas', agile_email:'Integração Agile', compras:'Entrada Compras', inventario:'Estoque/Inventário' }; 
     tb.innerHTML = logs.map(l => {
       const dt = new Date(l.created_at); 
-      return `<tr>
-        <td style="text-align:center"><button onclick="deleteUpload('${l.id}')" style="background:none;border:none;cursor:pointer;color:var(--danger)">Excluir</button></td>
-        <td class="mono" style="font-size:12px">${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</td>
-        <td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;${badges[l.type] || ''}">${labels[l.type] || l.type}</span></td>
-        <td style="font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.filename}</td>
-        <td class="mono" style="font-size:12px">${fmtDateBR(l.week_code) || '—'}</td>
-        <td style="font-size:12px;color:var(--muted)">${l.result || '—'}</td>
-      </tr>`;
+      return `<tr><td style="text-align:center"><button onclick="deleteUpload('${l.id}')" style="background:none;border:none;cursor:pointer;color:var(--danger)">Excluir</button></td><td class="mono" style="font-size:12px">${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td><td><span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;${badges[l.type]||''}">${labels[l.type]||l.type}</span></td><td style="font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${l.filename}</td><td class="mono" style="font-size:12px">${fmtDateBR(l.week_code)||'—'}</td><td style="font-size:12px;color:var(--muted)">${l.result||'—'}</td></tr>`
     }).join(''); 
-  } catch(e) {} 
+  } catch(e){} 
 }
 
-// ── LÓGICA DE EXCLUSÃO ───────────────────────────────
-async function deleteRecipe(name) { 
-  if (!confirm(`Excluir as fichas de "${name}"?`)) return; 
-  try { 
-    await api('DELETE', `/api/recipes/${encodeURIComponent(name)}`); 
-    loadFichas(); 
-  } catch (err) {} 
-}
+async function deleteRecipe(name) { if (!confirm(`Excluir as fichas de "${name}"?`)) return; try { await api('DELETE', `/api/recipes/${encodeURIComponent(name)}`); loadFichas(); } catch (err) {} }
+async function deleteWeek(weekCode) { if (!confirm(`Excluir dados do dia ${fmtDateBR(weekCode)}?`)) return; try { await api('DELETE', `/api/weeks/${weekCode}`); loadHistorico(); } catch (err) {} }
+async function deleteUpload(id) { if (!confirm(`Excluir registro?`)) return; try { await api('DELETE', `/api/uploads/${id}`); loadUploads(); } catch (err) {} }
+async function confirmClearAll() { if(!confirm('⚠️ Apagar TODOS os dados do sistema?')) return; setLoading(true, 'Apagando...'); try { await api('DELETE', '/api/all'); setTimeout(() => navigate('painel'), 500); } catch(e){} finally { setLoading(false); } }
 
-async function deleteWeek(weekCode) { 
-  if (!confirm(`Excluir dados do dia ${fmtDateBR(weekCode)}?`)) return; 
-  try { 
-    await api('DELETE', `/api/weeks/${weekCode}`); 
-    loadHistorico(); 
-  } catch (err) {} 
-}
-
-async function deleteUpload(id) { 
-  if (!confirm(`Excluir registro?`)) return; 
-  try { 
-    await api('DELETE', `/api/uploads/${id}`); 
-    loadUploads(); 
-  } catch (err) {} 
-}
-
-async function confirmClearAll() { 
-  if(!confirm('⚠️ Apagar TODOS os dados do sistema?')) return; 
-  setLoading(true, 'Apagando...'); 
-  try { 
-    await api('DELETE', '/api/all'); 
-    setTimeout(() => navigate('painel'), 500); 
-  } catch(e) {} 
-  finally { 
-    setLoading(false); 
-  } 
-}
-
-// Inicia a aplicação na aba Painel
-navigate('painel');
-
+// INICIA NA ABA DE ESTOQUE ATUAL
+navigate('estoque_atual');
 </script>
 </body>
 </html>
