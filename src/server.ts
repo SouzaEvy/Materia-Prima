@@ -944,20 +944,80 @@ app.post('/api/compras/upload', upload.single('file'), async (req: Request, res:
     
     let match;
     while ((match = regexPoderoso.exec(textoPlano)) !== null) {
-      let pedacos = match[1].split(/Total|Qtde|Observação/i);
-      let nomeLimpo = pedacos[pedacos.length - 1].trim();
+      let textoBruto = match[1] || '';
       
-      nomeLimpo = nomeLimpo.replace(/Pedido nº.*?Realizado.*?(\d{2}-|[A-Z])/i, '$1').trim();
-      if (nomeLimpo.length > 80) nomeLimpo = nomeLimpo.substring(nomeLimpo.length - 80).trim();
+      // 0. O "SUPER ASPIRADOR" DE CABEÇALHOS
+      textoBruto = textoBruto.replace(/Fornecedor|Produto|Observação|Observacao|Preço Un\.|Preco Un\.\s?\/ KG|Qtde\.\s?\/ KG|Total/gi, '').trim();
 
-      // ── NOVA REGRA: MATA O FORNECEDOR ──
-      // Procura o padrão "05-", "06-", etc. e corta tudo o que vem antes!
-      const matchCodigo = nomeLimpo.match(/\b\d{2}\s?-/);
-      if (matchCodigo) {
-        nomeLimpo = nomeLimpo.substring(nomeLimpo.indexOf(matchCodigo[0]));
+      if (
+        textoBruto.toLowerCase().includes('about:blank') ||
+        textoBruto.includes('PMG') || 
+        /\d{2}\/\d{2}\/\d{4},?\s?\d{2}:\d{2}/.test(textoBruto) ||
+        textoBruto.length < 2
+      ) {
+        continue;
       }
-      // ───────────────────────────────────
 
+      textoBruto = textoBruto.replace(/Pedido nº.*?Realizado.*?(\d{2}-|[A-Z])/i, '$1').trim();
+      if (textoBruto.length > 120) textoBruto = textoBruto.substring(textoBruto.length - 120).trim();
+
+      let fornecedor = 'Não Informado';
+      let nomeLimpo = textoBruto;
+
+      // ── AS 5 TENTATIVAS DE OURO ──
+      
+      // 1. Padrão "01 - " no início
+      const matchTracoInicio = textoBruto.match(/^([A-Za-z0-9\s]{1,15}?)\s?-\s?/);
+      // 2. Traço claro separando Fornecedor - Produto no meio da frase
+      const matchTracoMeio = textoBruto.match(/^(.*?)\s-\s(.*)$/);
+      // 3. Espaço Duplo (Lacuna invisível)
+      const matchLacuna = textoBruto.match(/\s{2,}/);
+      
+      // 4. O DICIONÁRIO DO MERCADO (A grande mágica para Food Center, SPAL, FG7)
+      const palavrasChave = "LTDA|EIRELI|EPP|M\\.?E\\.?|S\\/?A|S\\.A\\.|ALIMENTOS|BEBIDAS|DISTRIBUIDORA|DISTRIBUICAO|COMERCIO|ATACADISTA|IMPORTACAO|EXPORTACAO|INDUSTRIA|FEMSA|FRIGORIFICO|HORTIFRUTI|ATACADO|LATICINIOS|CARNES|DOCES|PADARIA|PANIFICADORA|MERCADO|SUPERMERCADO|HEINEKEN";
+      // Ele vai guloso até a *última* palavra-chave que encontrar na frase
+      const regexEmpresa = new RegExp(`^(.*\\b(?:${palavrasChave})\\b)\\s(.*)$`, 'i');
+      const matchEmpresa = textoBruto.match(regexEmpresa);
+
+      if (matchTracoMeio) {
+        fornecedor = matchTracoMeio[1].trim();
+        nomeLimpo = matchTracoMeio[2].trim();
+      }
+      else if (matchTracoInicio) {
+        fornecedor = matchTracoInicio[1].trim();
+        nomeLimpo = textoBruto.substring(matchTracoInicio[0].length).trim();
+      } 
+      else if (matchLacuna) {
+        const splitIdx = matchLacuna.index || 0;
+        fornecedor = textoBruto.substring(0, splitIdx).trim();
+        nomeLimpo = textoBruto.substring(splitIdx + matchLacuna[0].length).trim();
+      }
+      else if (matchEmpresa) {
+        fornecedor = matchEmpresa[1].trim();
+        nomeLimpo = matchEmpresa[2].trim();
+      }
+      else if (/^\d{2}[A-Z]/.test(textoBruto)) {
+        fornecedor = textoBruto.substring(0, 2);
+        nomeLimpo = textoBruto.substring(2).trim();
+      }
+
+      // ── LIMPEZA FINAL ──
+      if (fornecedor !== 'Não Informado') {
+        // Apaga os códigos como "03" ou "05" que vêm grudados no fim do nome (Ex: NSA DISTRIBUIDORA 03)
+        fornecedor = fornecedor.replace(/\s?\d{2}$/, '').trim();
+        fornecedor = fornecedor.replace(/\s?(?:dess|id|cod|cod\s?forn)?\s?\d+\s?$/i, '').trim();
+      }
+
+      nomeLimpo = nomeLimpo.replace(/^\d{2}(?=[A-Z])/, '').trim();
+      if (nomeLimpo.startsWith('- ')) nomeLimpo = nomeLimpo.substring(2).trim();
+
+      // Previne "Heineken Heineken"
+      if (fornecedor !== 'Não Informado' && nomeLimpo.toLowerCase().startsWith(fornecedor.toLowerCase())) {
+        nomeLimpo = nomeLimpo.substring(fornecedor.length).trim();
+        if (nomeLimpo.startsWith('- ')) nomeLimpo = nomeLimpo.substring(2).trim();
+      }
+
+      // EXTRAÇÃO MATEMÁTICA
       const valorUn = parseFloat(match[2].replace(/\./g, '').replace(',', '.'));
       const qtd = parseFloat(match[3].replace(/\./g, '').replace(',', '.'));
       const valorTot = parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
@@ -965,6 +1025,7 @@ app.post('/api/compras/upload', upload.single('file'), async (req: Request, res:
       if (nomeLimpo && qtd > 0) {
         comprasProcessadas.push({
           data_compra: dataPedido,
+          fornecedor: fornecedor,
           produto: nomeLimpo,
           quantidade: qtd,
           valor_unitario: valorUn,
