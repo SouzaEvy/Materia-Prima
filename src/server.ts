@@ -900,162 +900,193 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 
-// ── Route: POST /api/compras/upload (Lê o PDF de Pedidos) ──
-app.post('/api/compras/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
-  if (!req.file) {
-    res.status(400).json({ error: 'Nenhum arquivo enviado.' });
-    return;
-  }
+// ── ENTRADA DE COMPRAS (PDF + XML ENRICHMENT) ─────────────────────────────
 
-  const filepath = req.file.path;
-
-  try {
-    const dataBuffer = fs.readFileSync(filepath);
-    
-    // 1. Carrega o módulo na versão 2.0+ 
-    const pdfLib: any = require('pdf-parse');
-    
-    // 2. Extrai a Classe oficial 'PDFParse' do módulo
-    const PDFParseClass = pdfLib.PDFParse || (pdfLib.default && pdfLib.default.PDFParse);
-    
-    if (!PDFParseClass) {
-      throw new Error("Não foi possível encontrar a classe PDFParse na biblioteca.");
-    }
-
-    // 3. Inicializa o leitor e extrai o texto (Nova API)
-    const parser = new PDFParseClass({ data: dataBuffer });
-    const result = await parser.getText();
-    const text = result.text || "";
-
-    const comprasProcessadas: any[] = [];
-    
-    // Extrai a data do pedido do PDF (Ex: 23/03/2026)
-    let dataPedido = new Date().toISOString().split('T')[0]; 
-    const dataMatch = text.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    if (dataMatch) {
-      dataPedido = `${dataMatch[3]}-${dataMatch[2]}-${dataMatch[1]}`;
-    }
-
-    // O "Leitor Inteligente" criado para o padrão da Vila Leopoldina
-    const textoPlano = text.replace(/\n/g, ' ');
-
-    // Busca exatamente o padrão: [Produto] R$ [ValorUn] [Qtd] R$ [Total]
-    const regexPoderoso = /((?:(?!R\$).)+?)\s+R\$\s*([\d.,]+)\s+([\d.,]+)\s+R\$\s*([\d.,]+)/g;
-    
-    let match;
-    while ((match = regexPoderoso.exec(textoPlano)) !== null) {
-      let textoBruto = match[1] || '';
-      
-      // 0. O "SUPER ASPIRADOR" DE CABEÇALHOS
-      textoBruto = textoBruto.replace(/Fornecedor|Produto|Observação|Observacao|Preço Un\.|Preco Un\.\s?\/ KG|Qtde\.\s?\/ KG|Total/gi, '').trim();
-
-      if (
-        textoBruto.toLowerCase().includes('about:blank') ||
-        textoBruto.includes('PMG') || 
-        /\d{2}\/\d{2}\/\d{4},?\s?\d{2}:\d{2}/.test(textoBruto) ||
-        textoBruto.length < 2
-      ) {
-        continue;
-      }
-
-      textoBruto = textoBruto.replace(/Pedido nº.*?Realizado.*?(\d{2}-|[A-Z])/i, '$1').trim();
-      if (textoBruto.length > 120) textoBruto = textoBruto.substring(textoBruto.length - 120).trim();
-
-      let fornecedor = 'Não Informado';
-      let nomeLimpo = textoBruto;
-
-      // ── AS 5 TENTATIVAS DE OURO ──
-      
-      // 1. Padrão "01 - " no início
-      const matchTracoInicio = textoBruto.match(/^([A-Za-z0-9\s]{1,15}?)\s?-\s?/);
-      // 2. Traço claro separando Fornecedor - Produto no meio da frase
-      const matchTracoMeio = textoBruto.match(/^(.*?)\s-\s(.*)$/);
-      // 3. Espaço Duplo (Lacuna invisível)
-      const matchLacuna = textoBruto.match(/\s{2,}/);
-      
-      // 4. O DICIONÁRIO DO MERCADO (A grande mágica para Food Center, SPAL, FG7)
-      const palavrasChave = "LTDA|EIRELI|EPP|M\\.?E\\.?|S\\/?A|S\\.A\\.|ALIMENTOS|BEBIDAS|DISTRIBUIDORA|DISTRIBUICAO|COMERCIO|ATACADISTA|IMPORTACAO|EXPORTACAO|INDUSTRIA|FEMSA|FRIGORIFICO|HORTIFRUTI|ATACADO|LATICINIOS|CARNES|DOCES|PADARIA|PANIFICADORA|MERCADO|SUPERMERCADO|HEINEKEN";
-      // Ele vai guloso até a *última* palavra-chave que encontrar na frase
-      const regexEmpresa = new RegExp(`^(.*\\b(?:${palavrasChave})\\b)\\s(.*)$`, 'i');
-      const matchEmpresa = textoBruto.match(regexEmpresa);
-
-      if (matchTracoMeio) {
-        fornecedor = matchTracoMeio[1].trim();
-        nomeLimpo = matchTracoMeio[2].trim();
-      }
-      else if (matchTracoInicio) {
-        fornecedor = matchTracoInicio[1].trim();
-        nomeLimpo = textoBruto.substring(matchTracoInicio[0].length).trim();
-      } 
-      else if (matchLacuna) {
-        const splitIdx = matchLacuna.index || 0;
-        fornecedor = textoBruto.substring(0, splitIdx).trim();
-        nomeLimpo = textoBruto.substring(splitIdx + matchLacuna[0].length).trim();
-      }
-      else if (matchEmpresa) {
-        fornecedor = matchEmpresa[1].trim();
-        nomeLimpo = matchEmpresa[2].trim();
-      }
-      else if (/^\d{2}[A-Z]/.test(textoBruto)) {
-        fornecedor = textoBruto.substring(0, 2);
-        nomeLimpo = textoBruto.substring(2).trim();
-      }
-
-      // ── LIMPEZA FINAL ──
-      if (fornecedor !== 'Não Informado') {
-        // Apaga os códigos como "03" ou "05" que vêm grudados no fim do nome (Ex: NSA DISTRIBUIDORA 03)
-        fornecedor = fornecedor.replace(/\s?\d{2}$/, '').trim();
-        fornecedor = fornecedor.replace(/\s?(?:dess|id|cod|cod\s?forn)?\s?\d+\s?$/i, '').trim();
-      }
-
-      nomeLimpo = nomeLimpo.replace(/^\d{2}(?=[A-Z])/, '').trim();
-      if (nomeLimpo.startsWith('- ')) nomeLimpo = nomeLimpo.substring(2).trim();
-
-      // Previne "Heineken Heineken"
-      if (fornecedor !== 'Não Informado' && nomeLimpo.toLowerCase().startsWith(fornecedor.toLowerCase())) {
-        nomeLimpo = nomeLimpo.substring(fornecedor.length).trim();
-        if (nomeLimpo.startsWith('- ')) nomeLimpo = nomeLimpo.substring(2).trim();
-      }
-
-      // EXTRAÇÃO MATEMÁTICA
-      const valorUn = parseFloat(match[2].replace(/\./g, '').replace(',', '.'));
-      const qtd = parseFloat(match[3].replace(/\./g, '').replace(',', '.'));
-      const valorTot = parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
-
-      if (nomeLimpo && qtd > 0) {
-        comprasProcessadas.push({
-          data_compra: dataPedido,
-          fornecedor: fornecedor,
-          produto: nomeLimpo,
-          quantidade: qtd,
-          valor_unitario: valorUn,
-          valor_total: valorTot
-        });
-      }
-    }
-    if (comprasProcessadas.length === 0) {
-      res.status(400).json({ error: 'Nenhum produto reconhecido. O layout do PDF não bate com o padrão esperado.' });
+app.post('/api/compras/upload', (req: Request, res: Response): void => {
+  upload.array('file', 10)(req, res, async (multerErr: any) => {
+    if (multerErr) {
+      res.status(400).json({ error: 'Erro no upload: ' + multerErr.message });
       return;
     }
 
-    // Salva no banco de dados
-    const { error: insertErr } = await supabase.from('compras').insert(comprasProcessadas);
-    if (insertErr) throw new Error(insertErr.message);
+    if (!req.files || (req.files as Express.Multer.File[]).length === 0) {
+      res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+      return;
+    }
 
-    // Registra nos logs
-    await supabase.from('upload_logs').insert({
-      type: 'compras',
-      filename: req.file.originalname,
-      result: `${comprasProcessadas.length} produtos adicionados ao estoque.`
-    });
+    const files = req.files as Express.Multer.File[];
+    const comprasProcessadas: any[] = [];
+    const fsLib = require('fs');
 
-    res.json({ success: true, message: `✅ ${comprasProcessadas.length} itens registrados no estoque!` });
-  } catch (err: any) {
-    console.error("Erro no Upload do PDF:", err);
-    res.status(500).json({ error: err.message });
-  } finally {
-    cleanFile(filepath);
-  }
+    try {
+      const { PDFParse } = require('pdf-parse');
+
+      const pdfFiles = files.filter(f => f.originalname.toLowerCase().endsWith('.pdf'));
+      const xmlFiles = files.filter(f => f.originalname.toLowerCase().endsWith('.xml'));
+
+      if (pdfFiles.length === 0) {
+        res.status(400).json({ error: 'Você precisa enviar pelo menos o PDF com os itens.' });
+        return;
+      }
+
+      // ── 1. CRIA O DICIONÁRIO DA VERDADE (A PARTIR DO XML) ──
+      const dicionarioFornecedores = new Set<string>();
+      
+      for (const xmlFile of xmlFiles) {
+        const xmlText = fsLib.readFileSync(xmlFile.path, 'utf8');
+        const razaoMatches = xmlText.matchAll(/<ds_fornecedor_razao>(.*?)<\/ds_fornecedor_razao>/g);
+        for (const match of razaoMatches) { if (match[1]) dicionarioFornecedores.add(match[1].trim()); }
+        const fantasiaMatches = xmlText.matchAll(/<ds_fornecedor_fantasia>(.*?)<\/ds_fornecedor_fantasia>/g);
+        for (const match of fantasiaMatches) { if (match[1]) dicionarioFornecedores.add(match[1].trim()); }
+      }
+      
+      const fornecedoresOficiais = Array.from(dicionarioFornecedores);
+
+      const corrigirFornecedor = (nomeBaguncadoPdf: string): string => {
+        if (!nomeBaguncadoPdf || nomeBaguncadoPdf === 'Não Informado') return nomeBaguncadoPdf;
+        if (fornecedoresOficiais.length === 0) return nomeBaguncadoPdf;
+        
+        const limpoPdf = nomeBaguncadoPdf.toLowerCase().replace(/[^\w\s]/g, '').trim();
+        const primeiraPalavraPdf = limpoPdf.split(' ')[0];
+
+        if (primeiraPalavraPdf.length < 3) return nomeBaguncadoPdf;
+
+        for (const oficial of fornecedoresOficiais) {
+          const limpoOficial = oficial.toLowerCase().replace(/[^\w\s]/g, '').trim();
+          if (limpoOficial.startsWith(primeiraPalavraPdf)) return oficial; 
+          if (limpoOficial.includes(limpoPdf) || limpoPdf.includes(limpoOficial)) return oficial; 
+        }
+        return nomeBaguncadoPdf;
+      };
+
+      // ── 2. PROCESSA O PDF ──
+      for (const file of pdfFiles) {
+        const dataBuffer = fsLib.readFileSync(file.path);
+        const parser = new PDFParse({ data: dataBuffer });
+        const data = await parser.getText();
+        if (typeof parser.destroy === 'function') await parser.destroy();
+
+        let textoPlano = data.text;
+        
+        // Extrai a data do pedido antes de destruirmos os textos de cabeçalho
+        let matchData = textoPlano.match(/realizado no dia\s*(\d{2}\/\d{2}\/\d{4})/i);
+        let dataPedido = matchData ? matchData[1].split('/').reverse().join('-') : new Date().toISOString().split('T')[0];
+
+        // 🚀 A SUPER MÁQUINA DE LAVAR: Aniquila cabeçalhos, datas isoladas e lixo estrutural
+        textoPlano = textoPlano
+          .replace(/"/g, ' ')          
+          .replace(/,,+/g, '   ')      
+          .replace(/R\$\s?/gi, '')     
+          .replace(/R\\\$\s?/gi, '')   
+          .replace(/\r?\n/g, ' ')      
+          .replace(/about:blank/gi, ' ')
+          .replace(/Observação do fornecedor:/gi, ' ')
+          .replace(/Relatório simplificado de pedidos/gi, ' ')
+          .replace(/Filial:.*?Pedido/gim, 'Pedido')
+          .replace(/--- PAGE \d+ ---/gi, ' ')
+          .replace(/Fornecedor|Produto|Observa[çc][ãa]o|Pre[çc]o\s*Un\..*?KG|Qtde\..*?KG|Total/gi, ' ') // Remove títulos de colunas
+          .replace(/Pedido nº.*?realizado no dia \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/gi, ' ') // Remove o bloco "Pedido n..."
+          .replace(/\d{2}\/\d{2}\/\d{4},?\s*\d{2}:\d{2}/gi, ' ') // Remove datas de cabeçalho isoladas
+          .replace(/\s\d+\/\d+\s/g, ' '); // Remove numeração de página (ex: 1/7)
+
+        // O Regex Poderoso
+        const regexPoderoso = /(.*?)\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d+)\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g;
+        
+        let match;
+        while ((match = regexPoderoso.exec(textoPlano)) !== null) {
+          let textoBruto = match[1].trim();
+          
+          // Se o texto não tem informação suficiente, salta
+          if (textoBruto.length < 3) { continue; }
+
+          let fornecedor = 'Não Informado';
+          let nomeLimpo = textoBruto;
+
+          // Técnicas de extração do nome do Fornecedor e Produto
+          const matchTracoInicio = textoBruto.match(/^([A-Za-z0-9\s]{1,15}?)\s?-\s?/);
+          const matchTracoMeio = textoBruto.match(/^(.*?)\s-\s(.*)$/);
+          const matchLacuna = textoBruto.match(/\s{2,}/);
+          const palavrasChave = "LTDA|EIRELI|EPP|M\\.?E\\.?|S\\/?A|S\\.A\\.|ALIMENTOS|BEBIDAS|DISTRIBUIDORA|DISTRIBUICAO|COMERCIO|ATACADISTA|IMPORTACAO|EXPORTACAO|INDUSTRIA|FEMSA|FRIGORIFICO|HORTIFRUTI|ATACADO|LATICINIOS|CARNES|DOCES|PADARIA|PANIFICADORA|MERCADO|SUPERMERCADO";
+          const regexEmpresa = new RegExp(`^(.*\\b(?:${palavrasChave})\\b)\\s(.*)$`, 'i');
+          const matchEmpresa = textoBruto.match(regexEmpresa);
+
+          if (matchTracoMeio) { 
+            fornecedor = matchTracoMeio[1].trim(); 
+            nomeLimpo = matchTracoMeio[2].trim(); 
+          }
+          else if (matchTracoInicio) { 
+            fornecedor = matchTracoInicio[1].trim(); 
+            nomeLimpo = textoBruto.substring(matchTracoInicio[0].length).trim(); 
+          } 
+          else if (matchLacuna) { 
+            const splitIdx = matchLacuna.index || 0; 
+            fornecedor = textoBruto.substring(0, splitIdx).trim(); 
+            nomeLimpo = textoBruto.substring(splitIdx + matchLacuna[0].length).trim(); 
+          }
+          else if (matchEmpresa) { 
+            fornecedor = matchEmpresa[1].trim(); 
+            nomeLimpo = matchEmpresa[2].trim(); 
+          }
+          else if (/^\d{2}[A-Z]/.test(textoBruto)) { 
+            fornecedor = textoBruto.substring(0, 2); 
+            nomeLimpo = textoBruto.substring(2).trim(); 
+          }
+
+          if (fornecedor !== 'Não Informado') {
+            fornecedor = fornecedor.replace(/\s?\d{2}$/, '').trim();
+            fornecedor = fornecedor.replace(/\s?(?:dess|id|cod|cod\s?forn)?\s?\d+\s?$/i, '').trim();
+            fornecedor = corrigirFornecedor(fornecedor); // Casamento com XML
+          }
+
+          // Últimas limpezas no nome do produto
+          nomeLimpo = nomeLimpo.replace(/^\d{2}(?=[A-Z])/, '').trim();
+          if (nomeLimpo.startsWith('- ')) nomeLimpo = nomeLimpo.substring(2).trim();
+
+          // Remove nome do fornecedor que tenha "transbordado" para o produto
+          const limpoFornecedorArr = fornecedor.split(' ');
+          if (fornecedor !== 'Não Informado' && limpoFornecedorArr.length > 0 && nomeLimpo.toLowerCase().startsWith(limpoFornecedorArr[0].toLowerCase())) {
+             nomeLimpo = nomeLimpo.replace(new RegExp(`^${limpoFornecedorArr[0]}\\s?`, 'i'), '').trim();
+             if (nomeLimpo.toLowerCase().startsWith(limpoFornecedorArr[1]?.toLowerCase() || 'xyz')) {
+                nomeLimpo = nomeLimpo.replace(new RegExp(`^${limpoFornecedorArr[1]}\\s?`, 'i'), '').trim();
+             }
+             if (nomeLimpo.startsWith('- ')) nomeLimpo = nomeLimpo.substring(2).trim();
+          }
+
+          const valorUn = parseFloat(match[2].replace(/\./g, '').replace(',', '.'));
+          const qtd = parseFloat(match[3].replace(/\./g, '').replace(',', '.'));
+          const valorTot = parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
+
+          if (nomeLimpo && qtd > 0) {
+            comprasProcessadas.push({
+              data_compra: dataPedido,
+              fornecedor: fornecedor,
+              produto: nomeLimpo,
+              quantidade: qtd,
+              valor_unitario: valorUn,
+              valor_total: valorTot
+            });
+          }
+        }
+      }
+
+      if (comprasProcessadas.length === 0) {
+        res.status(400).json({ error: 'Nenhum item válido encontrado nos PDFs.' });
+        return;
+      }
+
+      const { error: insertErr } = await supabase.from('compras').insert(comprasProcessadas);
+      if (insertErr) throw new Error(insertErr.message);
+
+      await supabase.from('upload_logs').insert({ type: 'compras', filename: `${pdfFiles.length} PDF(s) + ${xmlFiles.length} XML(s)`, result: `${comprasProcessadas.length} itens registrados.` });
+
+      res.json({ success: true, message: `✅ Leitura Híbrida Sucesso! ${comprasProcessadas.length} itens extraídos com fornecedores corrigidos.` });
+    } catch (err: any) {
+      console.error("Erro interno no servidor:", err);
+      res.status(500).json({ error: 'Erro ao processar os arquivos: ' + err.message });
+    } finally {
+      files.forEach(file => { try { fsLib.unlinkSync(file.path); } catch(e) {} });
+    }
+  });
 });
 
 // ── Route: GET /api/compras (Lista as compras) ──
@@ -1105,9 +1136,6 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: err.message ?? 'Erro interno do servidor' });
 });
 
-// Route: POST /api/inventario/upload (Lê os CSVs Semanai ou Quinzenais)
-
-// ── INVENTÁRIO (CONTAGEM DE ESTOQUE) ──────────────────────────────────────
 
 // ── INVENTÁRIO (CONTAGEM DE ESTOQUE) ──────────────────────────────────────
 
