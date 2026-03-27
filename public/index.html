@@ -179,7 +179,13 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
           <h3 style="font-family:'Syne',sans-serif; font-size:14px; font-weight:700">Top 5 Consumo (kg)</h3>
           <select id="dash-filter" onchange="loadDashboard()" style="font-size:12px; border-radius:4px; border:1px solid var(--border); padding:2px 5px; outline:none; cursor:pointer">
-            <option value="1">Este Mês</option><option value="3">3 Meses</option><option value="6">6 Meses</option><option value="12" selected>Este Ano</option>
+            <option value="15d">Últimos 15 Dias</option>
+            <option value="semana_atual">Semana Atual</option>
+            <option value="semana_passada">Semana Passada</option>
+            <option value="mes">Este Mês</option>
+            <option value="3m">3 Meses</option>
+            <option value="6m">6 Meses</option>
+            <option value="ano" selected>Este Ano</option>
           </select>
         </div>
         <div id="dash-top5"><span style="color:var(--muted);font-size:13px">Sem dados ainda.</span></div>
@@ -253,10 +259,10 @@
 
   <div class="section" id="sec-compras">
     <div id="compras-alert" style="margin-bottom:16px"></div>
-    <input type="file" id="compras-file" accept=".pdf" />
+    <input type="file" accept=".csv, text/csv, .xls" id="compras-file" />
     <label for="compras-file" class="upload-zone" style="margin-bottom:24px; border-color:var(--accent2); color:var(--accent2)">
       <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 
-      Subir PDF de Pedidos/Notas 
+      Subir CSV de Pedidos/Notas 
       <span class="hint">Ele extrai Fornecedor, Produto, Quantidade e Valor automaticamente</span>
     </label>
     <div class="card" style="padding:0;overflow:hidden">
@@ -269,13 +275,13 @@
               <th>Data</th>
               <th>Fornecedor</th>
               <th>Produto</th>
-              <th>Quantidade</th>
+              <th>Seção</th> <th>Quantidade</th>
               <th>Valor Un.</th>
               <th>Total</th>
             </tr>
           </thead>
           <tbody id="compras-tbody">
-            <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr>
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr>
           </tbody>
         </table>
       </div>
@@ -309,6 +315,22 @@
       <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Histórico de Dias de Consumo</h2>
       <span id="hist-count" style="font-size:12px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--border);padding:3px 10px;border-radius:99px">0 dias</span>
     </div>
+    
+    <div class="card" style="margin-bottom:18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <div>
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px">Data Inicial</label>
+        <input type="date" id="hist-start" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;outline:none" />
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px">Data Final</label>
+        <input type="date" id="hist-end" style="border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13.5px;outline:none" />
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end;padding-top:18px">
+        <button class="btn btn-blue" onclick="loadHistorico()">Filtrar</button>
+        <button class="btn btn-ghost" onclick="clearHistorico()">Limpar</button>
+      </div>
+    </div>
+
     <div id="hist-grid" style="display:grid;gap:11px">
       <div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhum dia registrado ainda. As vendas entrarão aqui automaticamente.</div>
     </div>
@@ -575,10 +597,10 @@ async function deleteInventarioData(dataIso, dataBR) {
   } catch (err) { showToast(err.message, 'error'); } 
 }
 
-// ── LÓGICA: COMPRAS E ESTOQUE (PDF) ──
+// ── LÓGICA: COMPRAS E ESTOQUE ──
 document.getElementById('compras-file').addEventListener('change', async function () { 
   if (!this.files[0]) return; 
-  setLoading(true, 'Lendo o PDF de compras...'); 
+  setLoading(true, 'Lendo o arquivo de compras...'); 
   const fd = new FormData(); 
   fd.append('file', this.files[0]); 
   
@@ -604,7 +626,7 @@ async function loadCompras() {
     const tbody = document.getElementById('compras-tbody'); 
     
     if (!compras.length) { 
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr>'; 
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">Nenhuma entrada registrada.</td></tr>'; 
       return; 
     } 
     
@@ -615,7 +637,7 @@ async function loadCompras() {
       const dataBR = fmtDateBR(c.data_compra); 
       if (dataBR !== currentDate) { 
         html += `<tr style="background:#f0f9ff; border-top:2px solid var(--border); border-bottom:1px solid var(--border)">
-          <td colspan="7" style="padding:10px 14px;">
+          <td colspan="8" style="padding:10px 14px;">
             <div style="display:flex; justify-content:space-between; align-items:center">
               <span style="font-weight:700; font-family:'Syne',sans-serif; color:var(--accent2)">📦 Lote do dia ${dataBR}</span>
               <button onclick="deleteComprasPorData('${c.data_compra}', '${dataBR}')" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:12px;font-weight:600;">🗑️ Excluir Lote</button>
@@ -625,6 +647,9 @@ async function loadCompras() {
         currentDate = dataBR; 
       } 
       
+      const valorUnFormatado = Number(c.valor_unitario || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const valorTotalFormatado = Number(c.valor_total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
       html += `<tr>
         <td style="text-align:center">
           <button onclick="deleteCompra('${c.id}')" title="Excluir Item" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;padding:4px">🗑️</button>
@@ -632,16 +657,18 @@ async function loadCompras() {
         <td class="mono" style="font-size:12px; color:var(--muted)">${dataBR}</td>
         <td style="font-size:11px; font-weight:600; color:var(--accent2)">${c.fornecedor || '—'}</td>
         <td style="font-weight:500">${c.produto}</td>
+        
+        <td><span style="background:var(--paper); border:1px solid var(--border); padding:3px 8px; border-radius:99px; font-size:11px; font-weight:600; color:var(--muted)">${c.secao || 'Geral'}</span></td>
+        
         <td class="mono">${c.quantidade}</td>
-        <td class="mono" style="color:var(--muted)">R$ ${Number(c.valor_unitario).toFixed(2)}</td>
-        <td class="mono" style="font-weight:600; color:var(--ink)">R$ ${Number(c.valor_total).toFixed(2)}</td>
+        <td class="mono" style="color:var(--muted)">${valorUnFormatado}</td>
+        <td class="mono" style="font-weight:600; color:var(--ink)">${valorTotalFormatado}</td>
       </tr>`; 
     }); 
     tbody.innerHTML = html; 
   } catch(e) {} 
 }
 
-// ── MÁGICA DA EXCLUSÃO: Atualiza o Estoque na hora ──
 async function deleteCompra(id) { 
   if (!confirm('Deseja excluir este item?')) return; 
   try { 
@@ -664,21 +691,47 @@ async function deleteComprasPorData(dataIso, dataBR) {
   } catch (err) {} 
 }
 
-// ── LÓGICA: DASHBOARD ──
+// ── LÓGICA: DASHBOARD E CALENDÁRIO INTELIGENTE ──
 async function loadDashboard() { 
   try { 
-    const m = document.getElementById('dash-filter')?.value || 12; 
-    const d = await api('GET', `/api/dashboard?months=${m}`); 
+    const filter = document.getElementById('dash-filter')?.value || 'ano'; 
+    let start = new Date();
+    let end = new Date();
+
+    if (filter === '15d') {
+      start.setDate(start.getDate() - 15);
+    } else if (filter === 'semana_atual') {
+      const day = start.getDay() || 7;
+      start.setDate(start.getDate() - day + 1);
+    } else if (filter === 'semana_passada') {
+      const day = start.getDay() || 7;
+      start.setDate(start.getDate() - day - 6);
+      end = new Date(start);
+      end.setDate(end.getDate() + 6);
+    } else if (filter === 'mes') {
+      start.setDate(1);
+    } else if (filter === '3m') {
+      start.setMonth(start.getMonth() - 3);
+    } else if (filter === '6m') {
+      start.setMonth(start.getMonth() - 6);
+    } else if (filter === 'ano') {
+      start.setFullYear(start.getFullYear() - 1); 
+    }
+
+    const startIso = start.toISOString().split('T')[0];
+    const endIso = end.toISOString().split('T')[0];
+
+    const d = await api('GET', `/api/dashboard?start=${startIso}&end=${endIso}`); 
     
     document.getElementById('dash-compras').textContent = 'R$ ' + (d.total_compras||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); 
-    document.getElementById('dash-kg').textContent = d.total_kg.toFixed(2); 
-    document.getElementById('dash-porcoes').textContent = d.total_portions; 
-    document.getElementById('dash-dias').textContent = d.total_weeks; 
-    document.getElementById('dash-fichas').textContent = d.recipe_count; 
+    document.getElementById('dash-kg').textContent = (d.total_kg || 0).toFixed(2); 
+    document.getElementById('dash-porcoes').textContent = d.total_portions || 0; 
+    document.getElementById('dash-dias').textContent = d.total_weeks || 0; 
+    document.getElementById('dash-fichas').textContent = d.recipe_count || 0; 
     document.getElementById('no-recipes-warn').style.display = d.recipe_count===0 ? 'block' : 'none'; 
     
     const top5 = document.getElementById('dash-top5'); 
-    if(!d.top5_ingredients.length) {
+    if(!d.top5_ingredients || d.top5_ingredients.length === 0) {
       top5.innerHTML = '<span style="color:var(--muted);font-size:13px">Sem dados.</span>'; 
     } else { 
       const max = d.top5_ingredients[0].kg; 
@@ -694,18 +747,20 @@ async function loadDashboard() {
     } 
     
     const rec = document.getElementById('dash-recent'); 
-    if(!d.recent_weeks.length) {
+    if(!d.recent_weeks || d.recent_weeks.length === 0) {
       rec.innerHTML = '<span style="color:var(--muted);font-size:13px">Nenhum dia registrado.</span>'; 
     } else { 
       rec.innerHTML = d.recent_weeks.map(w => `
         <div class="week-card" style="margin-bottom:9px" onclick="navigate('historico')">
           <div class="week-badge">${w.week_code}</div>
           <div style="font-size:14px;font-weight:600;font-family:'Syne',sans-serif">Dia ${fmtDateBR(w.week_code)}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:3px">${w.total_portions} porções · ${w.total_kg.toFixed(2)} kg consumidos</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${w.total_portions || 0} porções · ${Number(w.total_kg || 0).toFixed(2)} kg consumidos</div>
         </div>
       `).join('');
-    } 
-  } catch (e) {} 
+    }
+  } catch (e) {
+    console.error("Erro ao carregar o dashboard:", e);
+  }
 }
 
 // ── LÓGICA: FICHAS TÉCNICAS ──
@@ -753,16 +808,30 @@ async function loadFichas() {
   } catch (e) {} 
 }
 
-// ── LÓGICA: HISTÓRICO DE DIAS ──
+// ── LÓGICA: HISTÓRICO DE DIAS (COM FILTRO) ──
 async function loadHistorico() { 
   try { 
-    const weeks = await api('GET', '/api/weeks'); 
+    let weeks = await api('GET', '/api/weeks'); 
     const grid = document.getElementById('hist-grid'); 
-    document.getElementById('hist-count').textContent = weeks.length + ' dias registrados'; 
+
+    // O filtro entra em ação aqui
+    const start = document.getElementById('hist-start')?.value;
+    const end = document.getElementById('hist-end')?.value;
+
+    if (start) {
+      weeks = weeks.filter(w => w.week_code >= start);
+    }
+    if (end) {
+      weeks = weeks.filter(w => w.week_code <= end);
+    }
+
+    document.getElementById('hist-count').textContent = weeks.length + (weeks.length === 1 ? ' dia registrado' : ' dias registrados'); 
+    
     if (!weeks.length) { 
-      grid.innerHTML = '<div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhum dia registrado. As vendas entrarão aqui automaticamente.</div>'; 
+      grid.innerHTML = '<div style="color:var(--muted);font-size:14px;text-align:center;padding:40px">Nenhum registro encontrado para este período.</div>'; 
       return; 
     } 
+
     grid.innerHTML = weeks.map(w => `
       <div class="week-card" style="display:flex; justify-content:space-between; align-items:center;">
         <div onclick="openWeekDetail('${w.week_code}')" style="flex:1; cursor:pointer;">
@@ -778,6 +847,12 @@ async function loadHistorico() {
       </div>
     `).join(''); 
   } catch (e) {} 
+}
+
+function clearHistorico() {
+  document.getElementById('hist-start').value = '';
+  document.getElementById('hist-end').value = '';
+  loadHistorico();
 }
 
 async function openWeekDetail(weekCode) { 
@@ -919,8 +994,8 @@ async function confirmClearAll() {
   } 
 }
 
-// INICIA NA ABA DE ESTOQUE ATUAL
-navigate('estoque_atual');
+// INICIA NA ABA DE PAINEL
+navigate('painel');
 </script>
 </body>
 </html>
