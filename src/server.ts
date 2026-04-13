@@ -1139,122 +1139,153 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 // ── INVENTÁRIO (CONTAGEM DE ESTOQUE) ──────────────────────────────────────
 
-app.post('/api/inventario/upload', (req: Request, res: Response): void => {
-  upload.array('files', 50)(req, res, async (multerErr: any) => {
-    if (multerErr) {
-      res.status(400).json({ error: 'Erro ao receber o arquivo: ' + multerErr.message });
-      return;
-    }
+// ── ENTRADA DE INVENTÁRIO (HÍBRIDA: LÊ CSV E XML NATIVAMENTE) ─────────────────────────────
 
-    if (!req.files || (req.files as Express.Multer.File[]).length === 0) {
-      res.status(400).json({ error: 'Nenhum arquivo enviado.' });
-      return;
-    }
+app.post('/api/inventario/upload', (req: Request, res: Response): void => {
+  upload.array('files', 5)(req, res, async (multerErr: any) => {
+    if (multerErr) return res.status(400).json({ error: 'Erro no upload: ' + multerErr.message });
+    if (!req.files || (req.files as Express.Multer.File[]).length === 0) return res.status(400).json({ error: 'Nenhum arquivo enviado.' });
+
+    const dataContagem = req.query.date as string;
+    if (!dataContagem) return res.status(400).json({ error: 'A Data da contagem é obrigatória!' });
 
     const files = req.files as Express.Multer.File[];
-    const inventarioProcessado: any[] = [];
-    const fs = require('fs');
+    const fsLib = require('fs');
+    const contagensProcessadas: any[] = [];
 
     try {
-      const dataContagem = (typeof req.query.date === 'string' && req.query.date) ? req.query.date : new Date().toISOString().split('T')[0];
-      const ExcelJS = require('exceljs');
+      // Motor para quebrar linhas CSV perfeitamente (ignorando vírgulas dentro de aspas)
+      const quebrarLinhaCSV = (texto: string, delimitador: string) => {
+        let resultado = [];
+        let atual = '';
+        let dentroDeAspas = false;
+        for (let i = 0; i < texto.length; i++) {
+            const char = texto[i];
+            if (char === '"' && texto[i+1] === '"' && dentroDeAspas) { atual += '"'; i++; } 
+            else if (char === '"') { dentroDeAspas = !dentroDeAspas; } 
+            else if (char === delimitador && !dentroDeAspas) { resultado.push(atual.trim()); atual = ''; } 
+            else { atual += char; }
+        }
+        resultado.push(atual.trim());
+        return resultado;
+      };
 
       for (const file of files) {
-        const fileBuffer = fs.readFileSync(file.path);
-        const workbook = new ExcelJS.Workbook();
+        const isXML = file.originalname.toLowerCase().endsWith('.xml');
+        const isCSV = file.originalname.toLowerCase().endsWith('.csv');
+
+        // Se não for nem CSV nem XML, ignora o arquivo
+        if (!isXML && !isCSV) continue; 
+
+        // Lê o ficheiro em formato de texto (Bypass à biblioteca ZIP/XLSX)
+        let buffer = fsLib.readFileSync(file.path);
+        let fileContent = buffer.toString('utf8');
         
-        await workbook.xlsx.load(fileBuffer);
+        // Proteção para Excel Brasileiro (caracteres estranhos)
+        if (fileContent.includes('')) {
+            fileContent = buffer.toString('latin1');
+        }
 
-        workbook.eachSheet((sheet: any) => {
-          const rows: string[][] = [];
-          
-          // O SEGREDO AQUI: Pula linhas vazias e tem TRAVA de 2.000 linhas
-          sheet.eachRow((row: any, rowNumber: number) => {
-            if (rowNumber > 2000) return; // Evita o loop infinito do Excel
+        // ==========================================
+        // 1. SE FOR UM ARQUIVO XML DA ACOM
+        // ==========================================
+        if (isXML) {
+            const blocos = fileContent.match(/<result>[\s\S]*?<\/result>|<item>[\s\S]*?<\/item>|<registro>[\s\S]*?<\/registro>/gi) || [];
+            for (const bloco of blocos) {
+                const matchProd = bloco.match(/<(?:produto|descricao|item|nome|ds_produto)>(.*?)<\//i);
+                const matchQtd = bloco.match(/<(?:quantidade|qtd|qtde|saldo|fisico|contagem|qt_contada)>(.*?)<\//i);
 
-            const rowValues: string[] = [];
-            // O ExcelJS guarda os valores num array. Nós extraímos direto (muito mais rápido)
-            if (Array.isArray(row.values)) {
-              for (let i = 1; i < row.values.length; i++) {
-                const cellVal = row.values[i];
-                let textVal = '';
-                // Lê o texto ou o resultado da fórmula
-                if (cellVal !== null && cellVal !== undefined) {
-                   textVal = typeof cellVal === 'object' && cellVal.result !== undefined ? String(cellVal.result) : String(cellVal);
+                if (matchProd && matchQtd) {
+                    let produto = matchProd[1].trim();
+                    let qtdRaw = matchQtd[1].trim();
+
+                    let qtd = null;
+                    if (qtdRaw !== '' && qtdRaw !== '-') {
+                        if (qtdRaw.includes(',')) qtdRaw = qtdRaw.replace(/\./g, '').replace(',', '.');
+                        qtd = parseFloat(qtdRaw);
+                    }
+
+                    if (produto && qtd !== null && !isNaN(qtd)) {
+                        contagensProcessadas.push({ data_contagem: dataContagem, produto, quantidade: qtd });
+                    }
                 }
-                rowValues.push(textVal);
-              }
             }
-            rows.push(rowValues);
-          });
+        } 
+        // ==========================================
+        // 2. SE FOR UM ARQUIVO CSV EXPORTADO
+        // ==========================================
+        else if (isCSV) {
+            const linhas = fileContent.split(/\r?\n/);
+            if (linhas.length < 2) continue; 
 
-          if (rows.length < 2) return;
-
-          let colDesc = -1, colQtd = -1;
-          let startRow = -1;
-
-          // Procura o cabeçalho
-          for (let i = 0; i < Math.min(30, rows.length); i++) {
-            if (!rows[i]) continue;
-            const rowLower = rows[i].map((c: string) => c.toLowerCase().trim().replace(/ç/g, 'c').replace(/ã/g, 'a').replace(/\./g, ''));
+            const cabecalhoBruto = linhas[0];
+            const delimitador = cabecalhoBruto.includes(';') ? ';' : (cabecalhoBruto.includes('\t') ? '\t' : ',');
             
-            // Padrão 1 (Semanal)
-            if (rowLower.includes('descricao item') && (rowLower.includes('qt na emb'))) {
-              colDesc = rowLower.findIndex((c: string) => c === 'descricao item');
-              colQtd = rowLower.findIndex((c: string) => c.includes('qt na emb'));
-              startRow = i + 1; break;
+            const cabecalhos = quebrarLinhaCSV(cabecalhoBruto, delimitador).map(c => 
+                c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+            );
+
+            const acharColuna = (chaves: string[], exclui: string[] = []) => {
+                return cabecalhos.findIndex(c => {
+                    return chaves.some(chave => c.includes(chave)) && !exclui.some(ex => c.includes(ex));
+                });
+            };
+
+            const idxProduto = acharColuna(['produto', 'descricao', 'item', 'nome'], ['cod', 'status', 'id']); 
+            const idxQtd = acharColuna(['contagem', 'fisico', 'real', 'quantidade', 'qtde', 'qtd', 'saldo', 'estoque']);
+
+            if (idxProduto !== -1 && idxQtd !== -1) {
+                for (let i = 1; i < linhas.length; i++) {
+                    if (!linhas[i].trim()) continue;
+                    const colunas = quebrarLinhaCSV(linhas[i], delimitador);
+                    let produto = colunas[idxProduto] || '';
+                    
+                    const formatarNumero = (val: any) => {
+                        if (val === undefined || val === null || val === '') return null;
+                        let limpo = String(val).replace(/"/g, '').trim();
+                        if (limpo === '' || limpo === '-') return null; 
+                        if (limpo.includes(',')) {
+                            limpo = limpo.replace(/\./g, ''); 
+                            limpo = limpo.replace(',', '.');  
+                        }
+                        return parseFloat(limpo);
+                    };
+                    
+                    let qtd = formatarNumero(colunas[idxQtd]);
+
+                    if (produto && qtd !== null && !isNaN(qtd)) {
+                        contagensProcessadas.push({
+                            data_contagem: dataContagem,
+                            produto: String(produto).replace(/"/g, '').trim(),
+                            quantidade: qtd
+                        });
+                    }
+                }
             }
-            // Padrão 2 (Mensal)
-            else if (rowLower.includes('codigo everest') && rowLower.includes('descricao') && rowLower.includes('quantidade')) {
-              colDesc = rowLower.findIndex((c: string) => c === 'descricao');
-              colQtd = rowLower.findIndex((c: string) => c === 'quantidade');
-              startRow = i + 1; break;
-            }
-          }
-
-          if (startRow === -1) return;
-
-          // Extrai os produtos
-          for (let i = startRow; i < rows.length; i++) {
-            const row = rows[i];
-            if (!row || row.length <= Math.max(colDesc, colQtd)) continue;
-
-            const produto = (row[colDesc] || '').trim();
-            let quantidadeStr = (row[colQtd] || '0').trim();
-            if (quantidadeStr.includes(',')) quantidadeStr = quantidadeStr.replace(/\./g, '').replace(',', '.');
-            const quantidade = parseFloat(quantidadeStr);
-
-            if (produto && !isNaN(quantidade) && quantidade > 0) {
-              inventarioProcessado.push({
-                data_contagem: dataContagem,
-                produto: produto,
-                quantidade: quantidade,
-                unidade: '' 
-              });
-            }
-          }
-        });
+        }
       }
 
-      if (inventarioProcessado.length === 0) {
-        res.status(400).json({ error: 'Nenhum dado válido encontrado. O sistema ignorou as abas de resumo ou as tabelas vazias.' });
-        return;
+      if (contagensProcessadas.length === 0) {
+        throw new Error('Nenhum item válido encontrado. Certifique-se de que a planilha tem as colunas Produto e Quantidade.');
       }
 
-      const { error: insertErr } = await supabase.from('inventario').insert(inventarioProcessado);
+      const { error: insertErr } = await supabase.from('inventario').insert(contagensProcessadas);
       if (insertErr) throw new Error(insertErr.message);
 
-      await supabase.from('upload_logs').insert({ type: 'inventario', filename: `Planilha Excel`, result: `${inventarioProcessado.length} itens registrados.` });
-
-      res.json({ success: true, message: `✅ Leitura concluída! ${inventarioProcessado.length} itens capturados com sucesso.` });
-    } catch (err: any) {
-      console.error("Erro interno no servidor:", err);
-      // Devolve o erro para a tela caso o Excel esteja corrompido
-      res.status(500).json({ error: 'Erro ao processar o arquivo: ' + err.message });
-    } finally {
-      files.forEach(file => {
-        try { fs.unlinkSync(file.path); } catch(e) {}
+      await supabase.from('upload_logs').insert({ 
+          type: 'inventario', 
+          filename: `${files.length} Arquivo(s) Lidos`, 
+          week_code: dataContagem, 
+          result: `${contagensProcessadas.length} itens contados.` 
       });
+
+      res.json({ success: true, message: `✅ Leitura Sucesso! ${contagensProcessadas.length} itens foram gravados no estoque do dia ${dataContagem.split('-').reverse().join('/')}.` });
+      
+    } catch (err: any) {
+      console.error("Erro interno na rota de inventario:", err);
+      res.status(500).json({ error: err.message });
+    } finally {
+      files.forEach(file => { try { fsLib.unlinkSync(file.path); } catch(e) {} });
     }
   });
 });
@@ -1310,6 +1341,14 @@ app.get('/api/estoque-atual', async (req: Request, res: Response) => {
     // ── A MÁGICA DO PADRONIZADOR DE NOMES ──
     const normalizarNome = (nome: string) => {
       if (!nome) return 'DESCONHECIDO';
+
+      const nomeBruto = nome.toUpperCase();
+      if (nomeBruto.includes('CREME DE LEITE') && nomeBruto.includes('25')) return 'CREME DE LEITE 25%';
+      if (nomeBruto.includes('CREME DE LEITE') && nomeBruto.includes('35')) return 'CREME DE LEITE 35%';
+      if (nomeBruto.includes('WHISKY') && nomeBruto.includes('12')) return 'WHISKY BALLANTINES 12 ANOS';
+      if (nomeBruto.includes('WHISKY') && nomeBruto.includes('8')) return 'WHISKY BALLANTINES 8 ANOS';
+      // ==========================================
+
       let n = nome.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // Remove acentos
       n = n.replace(/[^\w\s]/gi, ' '); // Remove pontuação
       n = n.replace(/\b\d+\/\d+\b/g, ' '); // Remove frações tipo "4/5" ou "61/70"
