@@ -803,56 +803,86 @@ app.post('/api/agile/webhook', async (req: Request, res: Response) => {
   }
 });
 
-// ── Dashboard com Filtros ────────────────────────────────────
-app.get('/api/dashboard', async (req, res) => {
+// ── DASHBOARD (CORREÇÃO DOS ZEROS: KG E FICHAS) ─────────────────────────────
+app.get('/api/dashboard', async (req: Request, res: Response) => {
   try {
-    const months = parseInt(req.query.months as string) || 12;
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - months);
+    const { start, end } = req.query;
 
-    // Busca Semanas(Dias), Registros e Compras
-    const { data: allWeeks } = await supabase.from('weeks').select('id, week_code, total_portions, created_at').order('week_code', { ascending: false });
-    const { data: allRecords } = await supabase.from('consumption_records').select('week_id, ingredient, kg');
-    const { data: allCompras } = await supabase.from('compras').select('valor_total, data_compra');
+    // 1. Total de Compras no período
+    let comprasQuery = supabase.from('compras').select('valor_total');
+    if (start && end) {
+      comprasQuery = comprasQuery.gte('data_compra', start).lte('data_compra', end);
+    }
+    const { data: comprasData } = await comprasQuery;
+    const total_compras = (comprasData || []).reduce((acc, curr) => acc + Number(curr.valor_total || 0), 0);
 
-    // Filtra pelo período selecionado no dropdown
-    const periodWeeks = (allWeeks ?? []).filter(w => {
-      const d = w.week_code.match(/^\d{4}-\d{2}-\d{2}$/) ? new Date(w.week_code + 'T12:00:00') : new Date(w.created_at);
-      return d >= cutoff;
-    });
+    // 2. Total de Semanas/Dias e Porções
+    let weeksQuery = supabase.from('weeks').select('*');
+    if (start && end) {
+      weeksQuery = weeksQuery.gte('week_code', start).lte('week_code', end);
+    }
+    const { data: weeksData, error: weeksErr } = await weeksQuery;
+    if (weeksErr) throw weeksErr;
 
-    const periodCompras = (allCompras ?? []).filter(c => {
-      const d = new Date(c.data_compra + 'T12:00:00');
-      return d >= cutoff;
-    });
+    const total_portions = (weeksData || []).reduce((acc, curr) => acc + Number(curr.total_portions || curr.porcoes || 0), 0);
+    const total_weeks = (weeksData || []).length;
+    const recent_weeks = [...(weeksData || [])]
+      .sort((a, b) => b.week_code.localeCompare(a.week_code))
+      .slice(0, 5);
 
-    const periodWeekIds = new Set(periodWeeks.map(w => w.id));
-    const periodRecords = (allRecords ?? []).filter(r => periodWeekIds.has(r.week_id));
-
-    // Cálculos do Dashboard
-    const totalKg = periodRecords.reduce((s, r) => s + Number(r.kg), 0);
-    const totalPortions = periodWeeks.reduce((s, w) => s + w.total_portions, 0);
-    const totalCompras = periodCompras.reduce((s, c) => s + Number(c.valor_total || 0), 0); // Soma o valor em Reais
-
-    const ingMap: Record<string, number> = {};
-    for (const r of periodRecords) ingMap[r.ingredient] = (ingMap[r.ingredient] ?? 0) + Number(r.kg);
-    const top5 = Object.entries(ingMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([ingredient, kg]) => ({ ingredient, kg: parseFloat(kg.toFixed(3)) }));
+    // 3. ✨ CORREÇÃO DO KG CONSUMIDO E TOP 5
+    let total_kg = 0; 
+    let top5_ingredients: any[] = [];
     
-    const { count: recipeCount } = await supabase.from('recipes').select('id', { count: 'exact', head: true });
+    if (weeksData && weeksData.length > 0) {
+      const validWeekIds = weeksData.map(w => w.id);
+      
+      const { data: recordsData, error: recordsErr } = await supabase
+        .from('consumption_records')
+        .select('*') // Puxa tudo para evitar erros de nomes de colunas
+        .in('week_id', validWeekIds); 
+        
+      if (recordsErr) throw recordsErr;
+
+      const ingMap: Record<string, number> = {};
+      (recordsData || []).forEach(r => {
+        const kg = Number(r.kg || r.quantidade || 0);
+        total_kg += kg; // ✨ SOMA O KG REAL EM TEMPO REAL!
+
+        const ingName = r.ingredient || r.ingrediente || 'Desconhecido';
+        if (!ingMap[ingName]) ingMap[ingName] = 0;
+        ingMap[ingName] += kg;
+      });
+
+      top5_ingredients = Object.keys(ingMap)
+        .map(ing => ({ ingredient: ing, kg: ingMap[ing] }))
+        .sort((a, b) => b.kg - a.kg)
+        .slice(0, 5);
+    }
+
+    // 4. ✨ CORREÇÃO DAS FICHAS TÉCNICAS (À Prova de Balas)
+    let recipe_count = 0;
+    try {
+        const { data: recipesData } = await supabase.from('recipes').select('*');
+        // Procura pelo nome do prato independentemente de como a coluna se chame na base de dados
+        const uniqueRecipes = new Set((recipesData || []).map(r => r.dish || r.prato || r.nome).filter(Boolean));
+        recipe_count = uniqueRecipes.size;
+    } catch(e) { console.error("Erro ao ler fichas:", e); }
 
     res.json({
-      total_compras: totalCompras,
-      total_kg: parseFloat(totalKg.toFixed(3)),
-      total_portions: totalPortions,
-      total_weeks: periodWeeks.length,
-      recipe_count: recipeCount ?? 0,
-      top5_ingredients: top5,
-      recent_weeks: periodWeeks.slice(0, 4).map(w => {
-        const kg = periodRecords.filter(r => r.week_id === w.id).reduce((s, r) => s + Number(r.kg), 0);
-        return { week_code: w.week_code, total_portions: w.total_portions, total_kg: parseFloat(kg.toFixed(3)) };
-      })
+      total_compras,
+      total_kg,
+      total_portions,
+      total_weeks,
+      recipe_count,
+      top5_ingredients,
+      recent_weeks
     });
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
+
+  } catch (err: any) {
+    console.error('Erro no dashboard:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Route: GET /api/reports (Relatório por Período de Datas Livre) ──
@@ -900,10 +930,10 @@ app.get('/api/reports', async (req, res) => {
   }
 });
 
-// ── ENTRADA DE COMPRAS (PDF + XML ENRICHMENT) ─────────────────────────────
+// ── ENTRADA DE COMPRAS (VIA CSV) ─────────────────────────────
 
 app.post('/api/compras/upload', (req: Request, res: Response): void => {
-  upload.array('file', 10)(req, res, async (multerErr: any) => {
+  upload.array('file', 5)(req, res, async (multerErr: any) => {
     if (multerErr) {
       res.status(400).json({ error: 'Erro no upload: ' + multerErr.message });
       return;
@@ -915,174 +945,129 @@ app.post('/api/compras/upload', (req: Request, res: Response): void => {
     }
 
     const files = req.files as Express.Multer.File[];
-    const comprasProcessadas: any[] = [];
     const fsLib = require('fs');
+    const comprasProcessadas: any[] = [];
 
     try {
-      const { PDFParse } = require('pdf-parse');
+      const csvFiles = files.filter(f => f.originalname.toLowerCase().endsWith('.csv'));
 
-      const pdfFiles = files.filter(f => f.originalname.toLowerCase().endsWith('.pdf'));
-      const xmlFiles = files.filter(f => f.originalname.toLowerCase().endsWith('.xml'));
-
-      if (pdfFiles.length === 0) {
-        res.status(400).json({ error: 'Você precisa enviar pelo menos o PDF com os itens.' });
+      if (csvFiles.length === 0) {
+        res.status(400).json({ error: 'Por favor, envie um arquivo .csv válido.' });
         return;
       }
 
-      // ── 1. CRIA O DICIONÁRIO DA VERDADE (A PARTIR DO XML) ──
-      const dicionarioFornecedores = new Set<string>();
-      
-      for (const xmlFile of xmlFiles) {
-        const xmlText = fsLib.readFileSync(xmlFile.path, 'utf8');
-        const razaoMatches = xmlText.matchAll(/<ds_fornecedor_razao>(.*?)<\/ds_fornecedor_razao>/g);
-        for (const match of razaoMatches) { if (match[1]) dicionarioFornecedores.add(match[1].trim()); }
-        const fantasiaMatches = xmlText.matchAll(/<ds_fornecedor_fantasia>(.*?)<\/ds_fornecedor_fantasia>/g);
-        for (const match of fantasiaMatches) { if (match[1]) dicionarioFornecedores.add(match[1].trim()); }
-      }
-      
-      const fornecedoresOficiais = Array.from(dicionarioFornecedores);
-
-      const corrigirFornecedor = (nomeBaguncadoPdf: string): string => {
-        if (!nomeBaguncadoPdf || nomeBaguncadoPdf === 'Não Informado') return nomeBaguncadoPdf;
-        if (fornecedoresOficiais.length === 0) return nomeBaguncadoPdf;
-        
-        const limpoPdf = nomeBaguncadoPdf.toLowerCase().replace(/[^\w\s]/g, '').trim();
-        const primeiraPalavraPdf = limpoPdf.split(' ')[0];
-
-        if (primeiraPalavraPdf.length < 3) return nomeBaguncadoPdf;
-
-        for (const oficial of fornecedoresOficiais) {
-          const limpoOficial = oficial.toLowerCase().replace(/[^\w\s]/g, '').trim();
-          if (limpoOficial.startsWith(primeiraPalavraPdf)) return oficial; 
-          if (limpoOficial.includes(limpoPdf) || limpoPdf.includes(limpoOficial)) return oficial; 
+      const quebrarLinhaCSV = (texto: string, delimitador: string) => {
+        let resultado = [];
+        let atual = '';
+        let dentroDeAspas = false;
+        for (let i = 0; i < texto.length; i++) {
+            const char = texto[i];
+            if (char === '"' && texto[i+1] === '"' && dentroDeAspas) { atual += '"'; i++; } 
+            else if (char === '"') { dentroDeAspas = !dentroDeAspas; } 
+            else if (char === delimitador && !dentroDeAspas) { resultado.push(atual.trim()); atual = ''; } 
+            else { atual += char; }
         }
-        return nomeBaguncadoPdf;
+        resultado.push(atual.trim());
+        return resultado;
       };
 
-      // ── 2. PROCESSA O PDF ──
-      for (const file of pdfFiles) {
-        const dataBuffer = fsLib.readFileSync(file.path);
-        const parser = new PDFParse({ data: dataBuffer });
-        const data = await parser.getText();
-        if (typeof parser.destroy === 'function') await parser.destroy();
+      for (const file of csvFiles) {
+        let fileContent = fsLib.readFileSync(file.path, 'utf8');
+        if (fileContent.includes('')) {
+            fileContent = fsLib.readFileSync(file.path, 'latin1');
+        }
 
-        let textoPlano = data.text;
+        const linhas = fileContent.split(/\r?\n/);
+        if (linhas.length < 2) continue; 
+
+        const cabecalhoBruto = linhas[0];
+        const delimitador = cabecalhoBruto.includes(';') ? ';' : (cabecalhoBruto.includes('\t') ? '\t' : ',');
         
-        // Extrai a data do pedido antes de destruirmos os textos de cabeçalho
-        let matchData = textoPlano.match(/realizado no dia\s*(\d{2}\/\d{2}\/\d{4})/i);
-        let dataPedido = matchData ? matchData[1].split('/').reverse().join('-') : new Date().toISOString().split('T')[0];
+        // 🚀 O ANIQUILADOR DE ACENTOS: Transforma "Seção" em "secao" e "Preço R$" em "preco r$"
+        const cabecalhos = quebrarLinhaCSV(cabecalhoBruto, delimitador).map(c => 
+            c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim()
+        );
 
-        // 🚀 A SUPER MÁQUINA DE LAVAR: Aniquila cabeçalhos, datas isoladas e lixo estrutural
-        textoPlano = textoPlano
-          .replace(/"/g, ' ')          
-          .replace(/,,+/g, '   ')      
-          .replace(/R\$\s?/gi, '')     
-          .replace(/R\\\$\s?/gi, '')   
-          .replace(/\r?\n/g, ' ')      
-          .replace(/about:blank/gi, ' ')
-          .replace(/Observação do fornecedor:/gi, ' ')
-          .replace(/Relatório simplificado de pedidos/gi, ' ')
-          .replace(/Filial:.*?Pedido/gim, 'Pedido')
-          .replace(/--- PAGE \d+ ---/gi, ' ')
-          .replace(/Fornecedor|Produto|Observa[çc][ãa]o|Pre[çc]o\s*Un\..*?KG|Qtde\..*?KG|Total/gi, ' ') // Remove títulos de colunas
-          .replace(/Pedido nº.*?realizado no dia \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/gi, ' ') // Remove o bloco "Pedido n..."
-          .replace(/\d{2}\/\d{2}\/\d{4},?\s*\d{2}:\d{2}/gi, ' ') // Remove datas de cabeçalho isoladas
-          .replace(/\s\d+\/\d+\s/g, ' '); // Remove numeração de página (ex: 1/7)
+        const acharColuna = (chaves: string[], exclui: string[] = []) => {
+            return cabecalhos.findIndex(c => {
+                const temChave = chaves.some(chave => c.includes(chave));
+                const temProibido = exclui.some(ex => c.includes(ex));
+                return temChave && !temProibido;
+            });
+        };
 
-        // O Regex Poderoso
-        const regexPoderoso = /(.*?)\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d+)\s+((?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})/g;
-        
-        let match;
-        while ((match = regexPoderoso.exec(textoPlano)) !== null) {
-          let textoBruto = match[1].trim();
+        // 🚀 RADAR AFINADO PARA O SEU EXCEL
+        const idxData = acharColuna(['data', 'pedido'], ['entrega', 'pagamento']);
+        const idxProduto = acharColuna(['produto'], ['cod', 'status']); 
+        const idxSecao = acharColuna(['secao', 'categoria', 'departamento']); // Sem acentos!
+        const idxPreco = acharColuna(['preco', 'unitario'], ['total']); // Lê "Preço R$" perfeitamente!
+        const idxQtd = acharColuna(['quantidade', 'qtde']);
+        const idxTotal = acharColuna(['total'], ['un', 'unit']);
+        const idxFornecedor = acharColuna(['fornecedor'], ['cnpj', 'cod', 'interno']);
+
+        if (idxProduto === -1 || idxQtd === -1 || idxTotal === -1) {
+            throw new Error(`Colunas vitais não encontradas. (Produto: ${idxProduto}, Qtd: ${idxQtd}, Total: ${idxTotal})`);
+        }
+
+        for (let i = 1; i < linhas.length; i++) {
+          if (!linhas[i].trim()) continue;
           
-          // Se o texto não tem informação suficiente, salta
-          if (textoBruto.length < 3) { continue; }
+          const colunas = quebrarLinhaCSV(linhas[i], delimitador);
+          
+          let dataBruta = idxData !== -1 ? (colunas[idxData] || '') : '';
+          let produto = colunas[idxProduto] || '';
+          let secao = idxSecao !== -1 ? (colunas[idxSecao] || 'Geral') : 'Geral';
+          let fornecedor = idxFornecedor !== -1 ? (colunas[idxFornecedor] || 'Não Informado') : 'Não Informado';
+          
+          const formatarNumero = (val: any) => {
+              if (!val) return 0;
+              let limpo = String(val).replace(/R\$\s?/gi, '').replace(/"/g, '').trim();
+              if (limpo.includes(',')) {
+                  limpo = limpo.replace(/\./g, ''); 
+                  limpo = limpo.replace(',', '.');  
+              }
+              return parseFloat(limpo) || 0;
+          };
+          
+          let precoUn = formatarNumero(colunas[idxPreco]);
+          let qtd = formatarNumero(colunas[idxQtd]);
+          let total = formatarNumero(colunas[idxTotal]);
 
-          let fornecedor = 'Não Informado';
-          let nomeLimpo = textoBruto;
-
-          // Técnicas de extração do nome do Fornecedor e Produto
-          const matchTracoInicio = textoBruto.match(/^([A-Za-z0-9\s]{1,15}?)\s?-\s?/);
-          const matchTracoMeio = textoBruto.match(/^(.*?)\s-\s(.*)$/);
-          const matchLacuna = textoBruto.match(/\s{2,}/);
-          const palavrasChave = "LTDA|EIRELI|EPP|M\\.?E\\.?|S\\/?A|S\\.A\\.|ALIMENTOS|BEBIDAS|DISTRIBUIDORA|DISTRIBUICAO|COMERCIO|ATACADISTA|IMPORTACAO|EXPORTACAO|INDUSTRIA|FEMSA|FRIGORIFICO|HORTIFRUTI|ATACADO|LATICINIOS|CARNES|DOCES|PADARIA|PANIFICADORA|MERCADO|SUPERMERCADO";
-          const regexEmpresa = new RegExp(`^(.*\\b(?:${palavrasChave})\\b)\\s(.*)$`, 'i');
-          const matchEmpresa = textoBruto.match(regexEmpresa);
-
-          if (matchTracoMeio) { 
-            fornecedor = matchTracoMeio[1].trim(); 
-            nomeLimpo = matchTracoMeio[2].trim(); 
-          }
-          else if (matchTracoInicio) { 
-            fornecedor = matchTracoInicio[1].trim(); 
-            nomeLimpo = textoBruto.substring(matchTracoInicio[0].length).trim(); 
-          } 
-          else if (matchLacuna) { 
-            const splitIdx = matchLacuna.index || 0; 
-            fornecedor = textoBruto.substring(0, splitIdx).trim(); 
-            nomeLimpo = textoBruto.substring(splitIdx + matchLacuna[0].length).trim(); 
-          }
-          else if (matchEmpresa) { 
-            fornecedor = matchEmpresa[1].trim(); 
-            nomeLimpo = matchEmpresa[2].trim(); 
-          }
-          else if (/^\d{2}[A-Z]/.test(textoBruto)) { 
-            fornecedor = textoBruto.substring(0, 2); 
-            nomeLimpo = textoBruto.substring(2).trim(); 
+          let dataPedido = new Date().toISOString().split('T')[0];
+          const matchData = dataBruta.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+          if (matchData) {
+              dataPedido = `${matchData[3]}-${matchData[2]}-${matchData[1]}`;
           }
 
-          if (fornecedor !== 'Não Informado') {
-            fornecedor = fornecedor.replace(/\s?\d{2}$/, '').trim();
-            fornecedor = fornecedor.replace(/\s?(?:dess|id|cod|cod\s?forn)?\s?\d+\s?$/i, '').trim();
-            fornecedor = corrigirFornecedor(fornecedor); // Casamento com XML
-          }
-
-          // Últimas limpezas no nome do produto
-          nomeLimpo = nomeLimpo.replace(/^\d{2}(?=[A-Z])/, '').trim();
-          if (nomeLimpo.startsWith('- ')) nomeLimpo = nomeLimpo.substring(2).trim();
-
-          // Remove nome do fornecedor que tenha "transbordado" para o produto
-          const limpoFornecedorArr = fornecedor.split(' ');
-          if (fornecedor !== 'Não Informado' && limpoFornecedorArr.length > 0 && nomeLimpo.toLowerCase().startsWith(limpoFornecedorArr[0].toLowerCase())) {
-             nomeLimpo = nomeLimpo.replace(new RegExp(`^${limpoFornecedorArr[0]}\\s?`, 'i'), '').trim();
-             if (nomeLimpo.toLowerCase().startsWith(limpoFornecedorArr[1]?.toLowerCase() || 'xyz')) {
-                nomeLimpo = nomeLimpo.replace(new RegExp(`^${limpoFornecedorArr[1]}\\s?`, 'i'), '').trim();
-             }
-             if (nomeLimpo.startsWith('- ')) nomeLimpo = nomeLimpo.substring(2).trim();
-          }
-
-          const valorUn = parseFloat(match[2].replace(/\./g, '').replace(',', '.'));
-          const qtd = parseFloat(match[3].replace(/\./g, '').replace(',', '.'));
-          const valorTot = parseFloat(match[4].replace(/\./g, '').replace(',', '.'));
-
-          if (nomeLimpo && qtd > 0) {
+          if (produto && qtd > 0) {
             comprasProcessadas.push({
               data_compra: dataPedido,
-              fornecedor: fornecedor,
-              produto: nomeLimpo,
+              fornecedor: String(fornecedor).replace(/"/g, '').trim() || 'Não Informado',
+              produto: String(produto).replace(/"/g, '').trim(),
+              secao: String(secao).replace(/"/g, '').trim() || 'Geral',
               quantidade: qtd,
-              valor_unitario: valorUn,
-              valor_total: valorTot
+              valor_unitario: precoUn,
+              valor_total: total
             });
           }
         }
       }
 
       if (comprasProcessadas.length === 0) {
-        res.status(400).json({ error: 'Nenhum item válido encontrado nos PDFs.' });
+        res.status(400).json({ error: 'Nenhum item válido encontrado no CSV.' });
         return;
       }
 
+      // IMPORTANTE: Antes de testar, apague os dados com R$ 0.00 lá no Supabase para não duplicar!
       const { error: insertErr } = await supabase.from('compras').insert(comprasProcessadas);
       if (insertErr) throw new Error(insertErr.message);
 
-      await supabase.from('upload_logs').insert({ type: 'compras', filename: `${pdfFiles.length} PDF(s) + ${xmlFiles.length} XML(s)`, result: `${comprasProcessadas.length} itens registrados.` });
+      await supabase.from('upload_logs').insert({ type: 'compras_csv', filename: `${csvFiles.length} CSV(s)`, result: `${comprasProcessadas.length} itens registrados.` });
 
-      res.json({ success: true, message: `✅ Leitura Híbrida Sucesso! ${comprasProcessadas.length} itens extraídos com fornecedores corrigidos.` });
+      res.json({ success: true, message: `✅ Importação CSV Sucesso! ${comprasProcessadas.length} itens processados.` });
     } catch (err: any) {
       console.error("Erro interno no servidor:", err);
-      res.status(500).json({ error: 'Erro ao processar os arquivos: ' + err.message });
+      res.status(500).json({ error: 'Erro ao processar o CSV: ' + err.message });
     } finally {
       files.forEach(file => { try { fsLib.unlinkSync(file.path); } catch(e) {} });
     }
