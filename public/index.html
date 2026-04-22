@@ -14,15 +14,27 @@
         .section-content { display: none; animation: fadeIn 0.3s ease-out; }
         .section-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #64748b; }
         .input-dark { background-color: #0f172a; border: 1px solid #334155; color: white; }
         .input-dark:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+        .table-slim th { padding: 0.75rem 0.5rem; font-size: 0.75rem; }
+        .table-slim td { padding: 0.5rem; font-size: 0.8rem; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col md:flex-row">
+
+    <div id="sysModal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-slate-700 animate-[fadeIn_0.2s_ease-out]">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
+                <h3 class="font-bold text-white text-lg" id="modalTitle">Título</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="p-6" id="modalBody"></div>
+        </div>
+    </div>
 
     <aside class="w-full md:w-72 bg-slate-900 border-r border-slate-800 flex flex-col sticky top-0 h-auto md:h-screen z-50">
         <div class="p-6 border-b border-slate-800 flex items-center space-x-4">
@@ -63,68 +75,65 @@
         </nav>
 
         <div class="p-4 border-t border-slate-800">
-            <button onclick="deleteAllData()" class="w-full flex items-center justify-center space-x-2 p-3 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors text-sm font-semibold">
-                <i class="fas fa-exclamation-triangle"></i><span>Resetar Banco de Dados</span>
+            <button onclick="openResetModal()" class="w-full flex items-center justify-center space-x-2 p-3 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors text-sm font-semibold">
+                <i class="fas fa-tools"></i><span>Limpeza de Dados</span>
             </button>
         </div>
     </aside>
 
-    <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+    <main class="flex-1 p-4 md:p-6 overflow-y-auto">
 
         <section id="dashboard" class="section-content active space-y-6">
-            <div class="flex justify-between items-end">
+            <div class="flex flex-col md:flex-row justify-between md:items-end gap-4">
                 <div>
                     <h2 class="text-3xl font-bold text-white">Dashboard</h2>
-                    <p class="text-slate-400 text-sm mt-1">Visão geral do movimento de matéria-prima.</p>
                 </div>
-                <select id="dashPeriod" onchange="loadDashboard()" class="input-dark rounded-lg px-4 py-2 text-sm">
-                    <option value="1">Último Mês</option>
-                    <option value="3">Últimos 3 Meses</option>
-                    <option value="6">Últimos 6 Meses</option>
-                    <option value="12" selected>Último Ano</option>
+                <select id="dashPeriod" onchange="loadDashboard()" class="input-dark rounded-lg px-4 py-2 text-sm font-semibold text-blue-400 cursor-pointer">
+                    <option value="3d">Últimos 3 dias</option>
+                    <option value="7d">Últimos 7 dias</option>
+                    <option value="15d">Últimos 15 dias</option>
+                    <option value="30d" selected>Últimos 30 dias</option>
+                    <option value="45d">Últimos 45 dias</option>
+                    <option value="60d">Últimos 60 dias</option>
+                    <option value="current_month">Mês Atual</option>
+                    <option value="prev_month">Mês Anterior</option>
                 </select>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="glass-panel p-5 rounded-xl">
-                    <div class="text-slate-400 text-xs font-semibold uppercase mb-1">Total Compras</div>
+                <div class="glass-panel p-5 rounded-xl border-l-4 border-l-emerald-500">
+                    <div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Total Compras</div>
                     <div class="text-2xl font-bold text-emerald-400" id="dash-compras">R$ 0,00</div>
                 </div>
-                <div class="glass-panel p-5 rounded-xl">
-                    <div class="text-slate-400 text-xs font-semibold uppercase mb-1">Volume Consumido</div>
-                    <div class="text-2xl font-bold text-white"><span id="dash-kg">0</span> <span class="text-sm font-normal text-slate-500">kg</span></div>
+                <div class="glass-panel p-5 rounded-xl border-l-4 border-l-amber-500">
+                    <div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Volume Consumido</div>
+                    <div class="text-2xl font-bold text-amber-500"><span id="dash-kg">0</span> <span class="text-sm font-normal opacity-70">kg</span></div>
                 </div>
-                <div class="glass-panel p-5 rounded-xl">
-                    <div class="text-slate-400 text-xs font-semibold uppercase mb-1">Pratos Vendidos</div>
+                <div class="glass-panel p-5 rounded-xl border-l-4 border-l-blue-500">
+                    <div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Pratos Vendidos</div>
                     <div class="text-2xl font-bold text-blue-400" id="dash-portions">0</div>
                 </div>
-                <div class="glass-panel p-5 rounded-xl">
-                    <div class="text-slate-400 text-xs font-semibold uppercase mb-1">Fichas Cadastradas</div>
-                    <div class="text-2xl font-bold text-indigo-400" id="dash-recipes">0</div>
+                <div class="glass-panel p-5 rounded-xl border-l-4 border-l-indigo-500">
+                    <div class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Fichas / Receitas</div>
+                    <div class="text-2xl font-bold text-white" id="dash-recipes">0</div>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div class="lg:col-span-2 glass-panel p-6 rounded-xl">
-                    <h3 class="text-lg font-bold mb-4 text-slate-200">Top 5 Ingredientes Mais Consumidos</h3>
-                    <div class="relative h-64 w-full">
-                        <canvas id="dashChart"></canvas>
-                    </div>
+                    <h3 class="text-lg font-bold mb-4 text-slate-200">Top 10 Ingredientes Mais Consumidos</h3>
+                    <div class="relative h-64 w-full"><canvas id="dashChart"></canvas></div>
                 </div>
-                <div class="glass-panel p-6 rounded-xl">
+                <div class="glass-panel p-6 rounded-xl overflow-hidden flex flex-col">
                     <h3 class="text-lg font-bold mb-4 text-slate-200">Semanas Recentes</h3>
-                    <div id="dash-recent-list" class="space-y-3">
-                        </div>
+                    <div id="dash-recent-list" class="space-y-3 overflow-y-auto flex-1 custom-scrollbar pr-2"></div>
                 </div>
             </div>
         </section>
 
         <section id="estoque" class="section-content space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h2 class="text-3xl font-bold text-white">Estoque Atual</h2>
-                    <p class="text-slate-400 text-sm mt-1">Cálculo: Contagem Base + Compras - Vendas.</p>
-                </div>
+                <div><h2 class="text-3xl font-bold text-white">Estoque Atual</h2></div>
                 <div class="relative w-full md:w-80">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
                     <input type="text" id="searchEstoque" onkeyup="filterEstoque()" placeholder="Buscar produto..." class="input-dark w-full rounded-lg py-2 pl-10 pr-4">
@@ -132,21 +141,18 @@
             </div>
 
             <div class="glass-panel rounded-xl overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm whitespace-nowrap">
-                        <thead class="bg-slate-800 border-b border-slate-700 text-slate-400">
+                <div class="overflow-x-auto max-h-[75vh] custom-scrollbar">
+                    <table class="w-full text-left table-slim whitespace-nowrap">
+                        <thead class="bg-slate-800 sticky top-0 border-b border-slate-700 text-slate-400 z-10 shadow-md">
                             <tr>
-                                <th class="px-6 py-4 font-semibold">Produto Normalizado / Originais</th>
-                                <th class="px-6 py-4 font-semibold text-center">Data Base</th>
-                                <th class="px-6 py-4 font-semibold text-center">Qtd. Contada</th>
-                                <th class="px-6 py-4 font-semibold text-center text-emerald-400">Entradas (+)</th>
-                                <th class="px-6 py-4 font-semibold text-center text-red-400">Saídas (-)</th>
-                                <th class="px-6 py-4 font-semibold text-right">Saldo Final</th>
+                                <th class="font-semibold uppercase tracking-wider">Produto Normalizado</th>
+                                <th class="font-semibold text-center uppercase tracking-wider">Base Contada</th>
+                                <th class="font-semibold text-center text-emerald-400 uppercase tracking-wider">Entradas (+)</th>
+                                <th class="font-semibold text-center text-red-400 uppercase tracking-wider">Saídas (-)</th>
+                                <th class="font-semibold text-right uppercase tracking-wider">Saldo Final</th>
                             </tr>
                         </thead>
-                        <tbody id="estoqueBody" class="divide-y divide-slate-800">
-                            <tr><td colspan="6" class="p-8 text-center text-slate-500">Carregando estoque...</td></tr>
-                        </tbody>
+                        <tbody id="estoqueBody" class="divide-y divide-slate-800/50"></tbody>
                     </table>
                 </div>
             </div>
@@ -155,28 +161,30 @@
         <section id="inventario" class="section-content space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
-                    <h2 class="text-3xl font-bold text-white">Inventário</h2>
-                    <p class="text-slate-400 text-sm mt-1">Insira as planilhas de contagem física (CSV/XML).</p>
+                    <h2 class="text-3xl font-bold text-white">Inventário Base</h2>
+                    <p class="text-slate-400 text-sm mt-1">Lotes de contagem e tabela completa de itens importados.</p>
                 </div>
                 <div class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700">
                     <input type="date" id="invDate" class="input-dark rounded px-3 py-1.5 text-sm">
                     <input type="file" id="invFiles" multiple class="hidden">
-                    <label for="invFiles" id="invFilesLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded text-sm transition-colors">Anexar</label>
+                    <label for="invFiles" id="invFilesLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded text-sm transition-colors">CSV Planilhas</label>
                     <button onclick="uploadInventario()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-semibold transition-colors">Salvar</button>
                 </div>
             </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="inventarioList">
-                </div>
             
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="inventarioList"></div>
+
             <div class="glass-panel rounded-xl overflow-hidden mt-6">
-                <div class="p-4 bg-slate-800 border-b border-slate-700"><h3 class="font-semibold text-white">Todos os Registros (Últimos 400)</h3></div>
-                <div class="overflow-x-auto max-h-[500px]">
+                <div class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+                    <h3 class="font-semibold text-white">Todos os Registros da Base</h3>
+                    <input type="text" id="searchInv" onkeyup="filterInventarioTable()" placeholder="Buscar item..." class="input-dark rounded-lg py-1 px-3 text-sm">
+                </div>
+                <div class="overflow-x-auto max-h-[60vh] custom-scrollbar">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-900 sticky top-0 border-b border-slate-700 text-slate-400">
                             <tr>
-                                <th class="px-6 py-3 font-semibold">Data Contagem</th>
-                                <th class="px-6 py-3 font-semibold">Produto Original</th>
+                                <th class="px-6 py-3 font-semibold">Data Lote</th>
+                                <th class="px-6 py-3 font-semibold">Nome Original no CSV</th>
                                 <th class="px-6 py-3 font-semibold text-right">Quantidade</th>
                             </tr>
                         </thead>
@@ -188,100 +196,50 @@
 
         <section id="compras" class="section-content space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h2 class="text-3xl font-bold text-white">Compras</h2>
-                    <p class="text-slate-400 text-sm mt-1">Upload de Notas Fiscais e Relatórios (PDF + XML).</p>
-                </div>
+                <div><h2 class="text-3xl font-bold text-white">Compras (Entradas)</h2></div>
                 <div class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700">
                     <input type="file" id="compFiles" multiple class="hidden" accept=".pdf,.xml">
-                    <label for="compFiles" id="compFilesLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded text-sm transition-colors">PDF + XML</label>
+                    <label for="compFiles" id="compFilesLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded text-sm transition-colors">Anexar PDF+XML</label>
                     <button onclick="uploadCompras()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded text-sm font-semibold transition-colors">Processar</button>
                 </div>
             </div>
-
-            <div class="glass-panel rounded-xl overflow-hidden">
-                <div class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
-                    <h3 class="font-semibold text-white">Itens Comprados (Recentes)</h3>
-                    <button onclick="deleteCompraData()" class="text-xs text-red-400 hover:text-red-300"><i class="fas fa-trash mr-1"></i>Excluir por Data</button>
-                </div>
-                <div class="overflow-x-auto max-h-[600px]">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-900 sticky top-0 border-b border-slate-700 text-slate-400 z-10">
-                            <tr>
-                                <th class="px-6 py-3 font-semibold">Data Pedido</th>
-                                <th class="px-6 py-3 font-semibold">Fornecedor</th>
-                                <th class="px-6 py-3 font-semibold">Produto</th>
-                                <th class="px-6 py-3 font-semibold text-center">Qtd</th>
-                                <th class="px-6 py-3 font-semibold text-right">R$ Total</th>
-                                <th class="px-6 py-3 font-semibold text-center">Excluir</th>
-                            </tr>
-                        </thead>
-                        <tbody id="comprasBody" class="divide-y divide-slate-800">
-                            </tbody>
-                    </table>
-                </div>
-            </div>
+            <div id="comprasContainer" class="space-y-3"></div>
         </section>
 
         <section id="saidas" class="section-content space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h2 class="text-3xl font-bold text-white">Saídas / Vendas</h2>
-                    <p class="text-slate-400 text-sm mt-1">Registros de venda do PDV (via Webhook ou CSV).</p>
-                </div>
+                <div><h2 class="text-3xl font-bold text-white">Vendas (Saídas)</h2></div>
                 <div class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700">
                     <input type="file" id="weekFile" class="hidden" accept=".csv">
-                    <label for="weekFile" id="weekFileLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded text-sm transition-colors">CSV Vendas</label>
+                    <label for="weekFile" id="weekFileLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded text-sm transition-colors">CSV PDV</label>
                     <button onclick="uploadWeek()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-semibold transition-colors">Enviar</button>
                 </div>
             </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="weeksList">
-                </div>
-            
-            <div id="weekDetailContainer" class="hidden glass-panel rounded-xl overflow-hidden mt-6">
-                <div class="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
-                    <h3 class="font-semibold text-white" id="weekDetailTitle">Detalhes da Semana</h3>
-                    <button onclick="document.getElementById('weekDetailContainer').classList.add('hidden')" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
-                </div>
-                <div class="p-4">
-                    <table class="w-full text-left text-sm">
-                        <thead class="text-slate-400 border-b border-slate-700">
-                            <tr>
-                                <th class="pb-2 font-semibold">Ingrediente Descontado</th>
-                                <th class="pb-2 font-semibold text-right">Quilos (kg)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="weekDetailBody" class="divide-y divide-slate-800"></tbody>
-                    </table>
-                </div>
-            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4" id="weeksList"></div>
         </section>
 
         <section id="fichas" class="section-content space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
-                    <h2 class="text-3xl font-bold text-white">Fichas Técnicas</h2>
-                    <p class="text-slate-400 text-sm mt-1">Receitas usadas para descontar ingredientes nas vendas.</p>
+                    <h2 class="text-3xl font-bold text-white">Fichas Técnicas Editáveis</h2>
+                    <p class="text-slate-400 text-sm mt-1">Clique no "X" ao lado do ingrediente para excluí-lo da ficha.</p>
                 </div>
                 <div class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700">
                     <input type="file" id="recipeFile" class="hidden" accept=".csv">
-                    <label for="recipeFile" id="recipeFileLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded text-sm transition-colors">CSV Fichas</label>
+                    <label for="recipeFile" id="recipeFileLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-1.5 rounded text-sm transition-colors">Upload CSV Geral</label>
                     <button onclick="uploadRecipes()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-semibold transition-colors">Salvar</button>
                 </div>
             </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="recipesList">
-                </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="recipesList"></div>
         </section>
 
         <section id="relatorios" class="section-content space-y-6">
             <div>
                 <h2 class="text-3xl font-bold text-white">Relatórios Customizados</h2>
-                <p class="text-slate-400 text-sm mt-1">Filtre o consumo de ingredientes por um período de tempo específico.</p>
+                <p class="text-slate-400 text-sm mt-1">Filtre as datas e clique num ingrediente para descobrir os pratos.</p>
             </div>
 
-            <div class="glass-panel p-6 rounded-xl flex flex-wrap gap-4 items-end">
+            <div class="glass-panel p-6 rounded-xl flex flex-wrap gap-4 items-end border-t-2 border-t-blue-500">
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Data Inicial</label>
                     <input type="date" id="repStart" class="input-dark rounded-lg px-4 py-2 text-sm">
@@ -295,25 +253,25 @@
                 </button>
             </div>
 
-            <div id="reportResults" class="hidden space-y-6">
+            <div id="reportResults" class="hidden space-y-6 mt-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="glass-panel p-5 rounded-xl border-l-4 border-l-blue-500">
                         <div class="text-slate-400 text-xs font-semibold uppercase mb-1">Pratos Vendidos no Período</div>
                         <div class="text-3xl font-bold text-white" id="repPortions">0</div>
                     </div>
                     <div class="glass-panel p-5 rounded-xl border-l-4 border-l-emerald-500">
-                        <div class="text-slate-400 text-xs font-semibold uppercase mb-1">Total de Ingredientes Consumidos</div>
+                        <div class="text-slate-400 text-xs font-semibold uppercase mb-1">Ingredientes Consumidos</div>
                         <div class="text-3xl font-bold text-emerald-400"><span id="repKg">0</span> <span class="text-sm">kg</span></div>
                     </div>
                 </div>
 
                 <div class="glass-panel rounded-xl overflow-hidden">
                     <div class="p-4 bg-slate-800 border-b border-slate-700"><h3 class="font-semibold text-white">Detalhamento de Consumo</h3></div>
-                    <div class="overflow-x-auto max-h-[500px]">
+                    <div class="overflow-x-auto max-h-[500px] custom-scrollbar">
                         <table class="w-full text-left text-sm">
                             <thead class="bg-slate-900 sticky top-0 border-b border-slate-700 text-slate-400">
                                 <tr>
-                                    <th class="px-6 py-3 font-semibold">Ingrediente</th>
+                                    <th class="px-6 py-3 font-semibold">Ingrediente (Clique para ver pratos)</th>
                                     <th class="px-6 py-3 font-semibold text-right">Consumo (kg)</th>
                                 </tr>
                             </thead>
@@ -325,24 +283,14 @@
         </section>
 
         <section id="logs" class="section-content space-y-6">
-            <div>
-                <h2 class="text-3xl font-bold text-white">Logs do Sistema</h2>
-                <p class="text-slate-400 text-sm mt-1">Histórico de uploads e recebimento de webhooks.</p>
-            </div>
+            <h2 class="text-3xl font-bold text-white">Logs do Sistema</h2>
             <div class="glass-panel rounded-xl overflow-hidden">
-                <div class="overflow-x-auto max-h-[700px]">
+                <div class="overflow-x-auto max-h-[700px] custom-scrollbar">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-900 sticky top-0 border-b border-slate-700 text-slate-400 z-10">
-                            <tr>
-                                <th class="px-6 py-4 font-semibold">Data/Hora</th>
-                                <th class="px-6 py-4 font-semibold">Operação</th>
-                                <th class="px-6 py-4 font-semibold">Arquivo / Referência</th>
-                                <th class="px-6 py-4 font-semibold">Resultado</th>
-                                <th class="px-6 py-4 font-semibold text-center">Apagar</th>
-                            </tr>
+                            <tr><th class="px-6 py-4">Data/Hora</th><th class="px-6 py-4">Operação</th><th class="px-6 py-4">Arquivo</th><th class="px-6 py-4">Resultado</th><th class="px-6 py-4">Limpar</th></tr>
                         </thead>
-                        <tbody id="logsBody" class="divide-y divide-slate-800">
-                            </tbody>
+                        <tbody id="logsBody" class="divide-y divide-slate-800"></tbody>
                     </table>
                 </div>
             </div>
@@ -351,23 +299,25 @@
     </main>
 
     <script>
+        window.recipesMap = new Map();
+        let fullInvTableData = [];
+
+        function closeModal() { document.getElementById('sysModal').classList.add('hidden'); }
+
         // --- ROUTING ---
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
                 const target = link.getAttribute('data-section');
                 
-                // Style Active Nav
                 document.querySelectorAll('.nav-link').forEach(l => {
                     l.className = 'nav-link flex items-center space-x-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white font-medium transition-colors';
                 });
                 link.className = 'nav-link flex items-center space-x-3 p-3 rounded-lg bg-blue-600 text-white font-medium transition-colors';
 
-                // Show Content
                 document.querySelectorAll('.section-content').forEach(sec => sec.classList.remove('active'));
                 document.getElementById(target).classList.add('active');
 
-                // Load Data
                 if(target === 'dashboard') loadDashboard();
                 if(target === 'estoque') loadEstoqueReal();
                 if(target === 'fichas') loadRecipes();
@@ -375,6 +325,7 @@
                 if(target === 'inventario') loadInventario();
                 if(target === 'logs') loadLogs();
                 if(target === 'saidas') loadWeeks();
+                if(target === 'relatorios') loadRecipes(); 
             });
         });
 
@@ -382,76 +333,151 @@
         function handleFileLabel(inputId, labelId, defaultText) {
             document.getElementById(inputId).addEventListener('change', (e) => {
                 const count = e.target.files.length;
-                document.getElementById(labelId).innerText = count > 1 ? `${count} arquivos` : (count === 1 ? e.target.files[0].name : defaultText);
+                document.getElementById(labelId).innerText = count > 1 ? `${count} arquivos` : (count === 1 ? e.target.files[0].name.substring(0,15)+"..." : defaultText);
             });
         }
         handleFileLabel('recipeFile', 'recipeFileLabel', 'CSV Fichas');
-        handleFileLabel('compFiles', 'compFilesLabel', 'PDF + XML');
-        handleFileLabel('invFiles', 'invFilesLabel', 'Anexar');
-        handleFileLabel('weekFile', 'weekFileLabel', 'CSV Vendas');
+        handleFileLabel('compFiles', 'compFilesLabel', 'PDF+XML');
+        handleFileLabel('invFiles', 'invFilesLabel', 'Planilhas');
+        handleFileLabel('weekFile', 'weekFileLabel', 'CSV PDV');
 
         function formatMoney(value) { return Number(value).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}); }
         function formatDate(dateStr) { if(!dateStr) return '---'; return new Date(dateStr + (dateStr.includes('T') ? '' : 'T12:00:00')).toLocaleDateString('pt-BR'); }
+        function getYYYYMMDD(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
-        // --- DASHBOARD ---
+        // --- RESET POR CATEGORIA ---
+        function openResetModal() {
+            document.getElementById('modalTitle').innerText = "Limpeza de Banco de Dados";
+            document.getElementById('modalBody').innerHTML = `
+                <div class="space-y-3">
+                    <p class="text-sm text-slate-400 mb-4">Escolha com cuidado. As exclusões são definitivas.</p>
+                    <button onclick="resetCategory('vendas')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition border border-slate-700 font-semibold"><i class="fas fa-concierge-bell w-6 text-center"></i> Zerar Vendas (PDV)</button>
+                    <button onclick="resetCategory('compras')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition border border-slate-700 font-semibold"><i class="fas fa-shopping-cart w-6 text-center"></i> Zerar Entradas/Compras</button>
+                    <button onclick="resetCategory('inventario')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition border border-slate-700 font-semibold"><i class="fas fa-clipboard-list w-6 text-center"></i> Limpar Todo o Inventário Base</button>
+                    <button onclick="resetCategory('fichas')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition border border-slate-700 font-semibold"><i class="fas fa-file-invoice w-6 text-center"></i> Apagar Fichas Técnicas</button>
+                    <div class="h-px bg-slate-700 my-4"></div>
+                    <button onclick="resetCategory('all')" class="w-full text-left px-4 py-3 bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white rounded-lg transition border border-red-500/30 font-black"><i class="fas fa-skull w-6 text-center"></i> DELETAR TUDO</button>
+                </div>
+            `;
+            document.getElementById('sysModal').classList.remove('hidden');
+        }
+
+        async function resetCategory(type) {
+            const labels = { vendas: 'as Vendas', compras: 'as Compras', inventario: 'o Inventário', fichas: 'as Fichas', all: 'TODO O SISTEMA' };
+            if(!confirm(`Tem certeza absoluta que deseja apagar ${labels[type]}?`)) return;
+            closeModal();
+            try {
+                if(type === 'all') { await fetch('/api/all', { method: 'DELETE' }); alert("Sistema resetado."); location.reload(); return; }
+                if(type === 'vendas') {
+                    const data = await (await fetch('/api/weeks')).json();
+                    for(let w of data) await fetch(`/api/weeks/${w.week_code}`, {method: 'DELETE'});
+                    loadWeeks(); loadEstoqueReal();
+                } else if(type === 'compras') {
+                    const data = await (await fetch('/api/compras')).json();
+                    const dates = [...new Set(data.map(c => c.data_compra))];
+                    for(let d of dates) await fetch(`/api/compras/data/${d}`, {method: 'DELETE'});
+                    loadCompras(); loadEstoqueReal();
+                } else if(type === 'inventario') {
+                    const data = await (await fetch('/api/inventario')).json();
+                    const dates = [...new Set(data.map(c => c.data_contagem))];
+                    for(let d of dates) await fetch(`/api/inventario/data/${d}`, {method: 'DELETE'});
+                    loadInventario(); loadEstoqueReal();
+                } else if(type === 'fichas') {
+                    const data = await (await fetch('/api/recipes/list')).json();
+                    const dishes = [...new Set(data.map(r => r.dish))];
+                    for(let d of dishes) await fetch(`/api/recipes/${encodeURIComponent(d)}`, {method: 'DELETE'});
+                    loadRecipes();
+                }
+                alert("Limpeza concluída!");
+            } catch(e) { alert("Erro durante a limpeza."); }
+        }
+
+        // --- DASHBOARD INTELIGENTE (TOP 10 + FILTROS PRECISOS) ---
         let dashChart = null;
         async function loadDashboard() {
             try {
-                const months = document.getElementById('dashPeriod').value;
-                const res = await fetch(`/api/dashboard?months=${months}`);
-                const data = await res.json();
+                const period = document.getElementById('dashPeriod').value;
+                const today = new Date();
+                let start = new Date();
+                let end = new Date();
 
-                document.getElementById('dash-compras').innerText = formatMoney(data.total_compras);
-                document.getElementById('dash-kg').innerText = (data.total_kg || 0).toFixed(3);
-                document.getElementById('dash-portions').innerText = data.total_portions || 0;
-                document.getElementById('dash-recipes').innerText = data.recipe_count || 0;
+                // Lógica de cálculo de datas
+                if (period.endsWith('d')) {
+                    const days = parseInt(period);
+                    start.setDate(today.getDate() - days);
+                } else if (period === 'current_month') {
+                    start = new Date(today.getFullYear(), today.getMonth(), 1);
+                } else if (period === 'prev_month') {
+                    start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    end = new Date(today.getFullYear(), today.getMonth(), 0);
+                }
 
-                document.getElementById('dash-recent-list').innerHTML = (data.recent_weeks || []).map(w => `
+                const startStr = getYYYYMMDD(start);
+                const endStr = getYYYYMMDD(end);
+
+                // Chama a API de Reports que faz a soma exata dos ingredientes na data
+                const [cRes, wRes, rRes, fRes] = await Promise.all([
+                    fetch('/api/compras').catch(()=>null),
+                    fetch('/api/weeks').catch(()=>null),
+                    fetch(`/api/reports?start=${startStr}&end=${endStr}`).catch(()=>null),
+                    fetch('/api/recipes/list').catch(()=>null)
+                ]);
+
+                const compras = cRes?.ok ? await cRes.json() : [];
+                const weeks = wRes?.ok ? await wRes.json() : [];
+                const reports = rRes?.ok ? await rRes.json() : { records: [] };
+                const fichas = fRes?.ok ? await fRes.json() : [];
+
+                const validCompras = compras.filter(c => c.data_compra >= startStr && c.data_compra <= endStr);
+                const validWeeks = weeks.filter(w => w.week_code >= startStr && w.week_code <= endStr);
+
+                document.getElementById('dash-compras').innerText = formatMoney(validCompras.reduce((s, c) => s + Number(c.valor_total||0), 0));
+                document.getElementById('dash-kg').innerText = validWeeks.reduce((s, w) => s + Number(w.total_kg||0), 0).toFixed(2);
+                document.getElementById('dash-portions').innerText = validWeeks.reduce((s, w) => s + Number(w.total_portions||0), 0);
+                document.getElementById('dash-recipes').innerText = new Set(fichas.map(f => f.dish)).size;
+
+                const recent = [...validWeeks].sort((a,b) => b.week_code.localeCompare(a.week_code)).slice(0, 5);
+                document.getElementById('dash-recent-list').innerHTML = recent.length ? recent.map(w => `
                     <div class="p-3 bg-slate-800 rounded-lg flex justify-between items-center border border-slate-700">
-                        <div><div class="font-bold text-sm text-white">${w.week_code}</div><div class="text-[10px] text-slate-400">${w.total_portions} pratos</div></div>
-                        <div class="font-bold text-blue-400">${w.total_kg.toFixed(2)} kg</div>
+                        <div><div class="font-bold text-sm text-white flex items-center"><i class="fas fa-calendar-day text-blue-500 mr-2"></i>${w.week_code}</div></div>
+                        <div class="font-black text-amber-400 bg-amber-400/10 px-2 py-1 rounded text-sm">-${Number(w.total_kg).toFixed(1)} kg</div>
                     </div>
-                `).join('');
+                `).join('') : '<div class="text-slate-500 text-sm text-center py-4">Sem vendas no período.</div>';
 
+                // Top 10 cruzado com exatidão pela API
+                const top10 = (reports.records || []).sort((a,b) => b.kg - a.kg).slice(0, 10);
                 const ctx = document.getElementById('dashChart').getContext('2d');
                 if (dashChart) dashChart.destroy();
                 dashChart = new Chart(ctx, {
                     type: 'bar',
-                    data: {
-                        labels: data.top5_ingredients.map(i => i.ingredient),
-                        datasets: [{ label: 'kg', data: data.top5_ingredients.map(i => i.kg), backgroundColor: '#3b82f6', borderRadius: 4 }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#334155' } }, x: { grid: { display: false } } } }
+                    data: { labels: top10.map(i => i.ingredient.substring(0, 15)), datasets: [{ label: 'Consumo (kg)', data: top10.map(i => i.kg), backgroundColor: '#3b82f6', borderRadius: 4 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#334155' } }, x: { grid: { display: false }, ticks: { font: {size: 10} } } } }
                 });
-            } catch(e) { console.error(e); }
+            } catch(e) {}
         }
 
         // --- ESTOQUE REAL ---
         let estoqueData = [];
         async function loadEstoqueReal() {
             try {
-                const res = await fetch('/api/estoque-atual');
-                estoqueData = await res.json();
+                estoqueData = await (await fetch('/api/estoque-atual')).json();
                 renderEstoque(estoqueData);
-            } catch(e) { document.getElementById('estoqueBody').innerHTML = `<tr><td colspan="6" class="p-8 text-center text-red-400">Erro ao carregar estoque.</td></tr>`; }
+            } catch(e) {}
         }
-
         function renderEstoque(data) {
             document.getElementById('estoqueBody').innerHTML = data.map(i => {
                 const saldo = parseFloat(i.saldo_atual || 0);
                 const colorClass = saldo > 0 ? 'text-emerald-400' : (saldo < 0 ? 'text-red-400' : 'text-slate-500');
                 return `
-                    <tr class="hover:bg-slate-800/50 transition-colors">
-                        <td class="px-6 py-4"><div class="font-bold text-white">${i.produto}</div><div class="text-[10px] text-slate-500 max-w-xs truncate" title="${i.nomes_originais}">${i.nomes_originais}</div></td>
-                        <td class="px-6 py-4 text-center"><div class="font-semibold text-slate-300">${i.saldo_base.toFixed(2)}</div><div class="text-[10px] text-slate-500">${formatDate(i.data_base)}</div></td>
-                        <td class="px-6 py-4 text-center font-semibold text-emerald-400">+${i.entradas.toFixed(2)}</td>
-                        <td class="px-6 py-4 text-center font-semibold text-red-400">-${i.saidas.toFixed(2)}</td>
-                        <td class="px-6 py-4 text-right font-bold text-lg ${colorClass}">${saldo.toFixed(2)} <span class="text-xs font-normal">kg</span></td>
-                    </tr>
-                `;
+                    <tr class="hover:bg-slate-800/50 border-b border-slate-800/50">
+                        <td class="px-2 py-1.5"><div class="font-semibold text-[13px] text-white">${i.produto}</div><div class="text-[10px] text-slate-500 max-w-[200px] md:max-w-xs truncate italic">${i.nomes_originais}</div></td>
+                        <td class="px-2 py-1.5 text-center"><div class="font-medium text-slate-300 text-xs">${i.saldo_base.toFixed(2)}</div><div class="text-[9px] text-slate-500">${i.data_base ? formatDate(i.data_base) : '--'}</div></td>
+                        <td class="px-2 py-1.5 text-center font-medium text-emerald-400 text-[13px]">+${i.entradas.toFixed(2)}</td>
+                        <td class="px-2 py-1.5 text-center font-medium text-red-400 text-[13px]">-${i.saidas.toFixed(2)}</td>
+                        <td class="px-2 py-1.5 text-right font-bold ${colorClass} text-[14px]">${saldo.toFixed(2)} <span class="text-[10px] font-normal opacity-70">kg</span></td>
+                    </tr>`;
             }).join('');
         }
-
         function filterEstoque() {
             const term = document.getElementById('searchEstoque').value.toLowerCase();
             renderEstoque(estoqueData.filter(i => i.produto.toLowerCase().includes(term) || i.nomes_originais.toLowerCase().includes(term)));
@@ -459,116 +485,119 @@
 
         // --- INVENTÁRIO ---
         async function loadInventario() {
-            const res = await fetch('/api/inventario');
-            const data = await res.json();
-            
-            // Render Distinct Dates (Lots)
+            const data = await (await fetch('/api/inventario')).json();
+            fullInvTableData = data;
             const lotes = new Set(data.map(i => i.data_contagem));
             document.getElementById('inventarioList').innerHTML = Array.from(lotes).map(date => `
-                <div class="p-4 bg-slate-800 rounded-xl border border-slate-700 flex justify-between items-center">
-                    <div><div class="text-xs text-slate-400 uppercase">Lote</div><div class="font-bold text-white">${formatDate(date)}</div></div>
-                    <button onclick="deleteInventario('${date}')" class="text-red-400 hover:text-red-300 p-2"><i class="fas fa-trash"></i></button>
+                <div class="glass-panel p-4 rounded-xl flex justify-between items-center border-l-4 border-l-amber-500">
+                    <div><div class="text-[10px] text-slate-500 font-bold uppercase">Lote Planilha</div><div class="font-bold text-white">${formatDate(date)}</div></div>
+                    <button onclick="deleteInventarioLote('${date}')" class="text-red-400 hover:bg-red-400/10 p-2 rounded transition"><i class="fas fa-trash"></i></button>
                 </div>
             `).join('');
-
-            // Render Full Table
+            renderInventarioTable(data);
+        }
+        function renderInventarioTable(data) {
             document.getElementById('inventarioTableBody').innerHTML = data.map(i => `
-                <tr class="hover:bg-slate-800/50">
-                    <td class="px-6 py-3 text-slate-300">${formatDate(i.data_contagem)}</td>
-                    <td class="px-6 py-3 text-white font-medium">${i.produto}</td>
-                    <td class="px-6 py-3 text-right text-blue-400 font-bold">${i.quantidade}</td>
-                </tr>
+                <tr class="hover:bg-slate-800/50"><td class="px-6 py-2 text-slate-400 text-xs">${formatDate(i.data_contagem)}</td><td class="px-6 py-2 text-white font-medium text-sm">${i.produto}</td><td class="px-6 py-2 text-right text-blue-400 font-bold">${i.quantidade}</td></tr>
             `).join('');
         }
-
+        function filterInventarioTable() {
+            const term = document.getElementById('searchInv').value.toLowerCase();
+            renderInventarioTable(fullInvTableData.filter(i => i.produto.toLowerCase().includes(term)));
+        }
         async function uploadInventario() {
             const date = document.getElementById('invDate').value;
             const files = document.getElementById('invFiles').files;
             if(!date || files.length === 0) return alert("Selecione data e arquivos.");
             const fd = new FormData(); for(let f of files) fd.append('files', f);
-            const res = await fetch(`/api/inventario/upload?date=${date}`, { method: 'POST', body: fd });
-            alert((await res.json()).message || "Erro no upload");
+            await fetch(`/api/inventario/upload?date=${date}`, { method: 'POST', body: fd });
             loadInventario(); loadEstoqueReal();
         }
-        async function deleteInventario(date) {
-            if(confirm(`Apagar contagem de ${formatDate(date)}?`)) {
-                await fetch(`/api/inventario/data/${date}`, { method: 'DELETE' });
-                loadInventario(); loadEstoqueReal();
-            }
+        async function deleteInventarioLote(date) {
+            if(confirm(`Apagar contagem de ${formatDate(date)}?`)) { await fetch(`/api/inventario/data/${date}`, { method: 'DELETE' }); loadInventario(); loadEstoqueReal(); }
         }
 
         // --- COMPRAS ---
         async function loadCompras() {
-            const res = await fetch('/api/compras');
-            const data = await res.json();
-            document.getElementById('comprasBody').innerHTML = data.map(c => `
-                <tr class="hover:bg-slate-800/50">
-                    <td class="px-6 py-3 text-slate-300">${formatDate(c.data_compra)}</td>
-                    <td class="px-6 py-3 text-slate-300">${c.fornecedor}</td>
-                    <td class="px-6 py-3 text-white font-medium">${c.produto}</td>
-                    <td class="px-6 py-3 text-center text-blue-400">${c.quantidade}</td>
-                    <td class="px-6 py-3 text-right text-emerald-400 font-bold">${formatMoney(c.valor_total)}</td>
-                    <td class="px-6 py-3 text-center"><button onclick="deleteCompra('${c.id}')" class="text-slate-500 hover:text-red-400"><i class="fas fa-times"></i></button></td>
-                </tr>
-            `).join('');
+            const data = await (await fetch('/api/compras')).json();
+            const grouped = {};
+            data.forEach(c => { if(!grouped[c.data_compra]) grouped[c.data_compra] = []; grouped[c.data_compra].push(c); });
+            const sortedDates = Object.keys(grouped).sort((a,b) => b.localeCompare(a));
+            document.getElementById('comprasContainer').innerHTML = sortedDates.map(date => {
+                const items = grouped[date];
+                return `
+                <div class="glass-panel rounded-xl overflow-hidden border border-slate-700">
+                    <div class="p-4 bg-slate-800 flex flex-col md:flex-row justify-between cursor-pointer hover:bg-slate-700" onclick="toggleElement('compra-${date}', 'icon-compra-${date}')">
+                        <div class="flex items-center space-x-3 mb-2 md:mb-0">
+                            <span class="font-bold text-white tracking-wide">${formatDate(date)}</span>
+                            <span class="bg-slate-900 text-slate-400 px-2 py-0.5 rounded text-[10px]">${items.length} itens</span>
+                        </div>
+                        <div class="flex items-center justify-between md:justify-end w-full md:w-auto space-x-4">
+                            <span class="font-black text-emerald-400">${formatMoney(items.reduce((s, i) => s + Number(i.valor_total||0), 0))}</span>
+                            <i class="fas fa-chevron-down text-slate-400 transition-transform" id="icon-compra-${date}"></i>
+                        </div>
+                    </div>
+                    <div id="compra-${date}" class="hidden bg-slate-900 border-t border-slate-700">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left table-slim">
+                                <thead class="text-slate-500 bg-slate-900/50"><tr><th class="pl-6">Fornecedor</th><th>Produto</th><th class="text-center">Qtd</th><th class="text-right pr-6">Total</th></tr></thead>
+                                <tbody class="divide-y divide-slate-800/50">
+                                    ${items.map(c => `<tr class="hover:bg-slate-800/30 text-slate-300"><td class="pl-6 text-[11px] truncate max-w-[120px]">${c.fornecedor}</td><td class="text-white text-xs">${c.produto}</td><td class="text-center font-bold text-blue-400 text-xs">${c.quantidade}</td><td class="text-right font-medium text-emerald-400 text-xs pr-6">${formatMoney(c.valor_total)}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
         }
         async function uploadCompras() {
             const files = document.getElementById('compFiles').files;
-            if(files.length === 0) return alert("Selecione os arquivos.");
+            if(!files.length) return;
             const fd = new FormData(); for(let f of files) fd.append('file', f);
-            const res = await fetch('/api/compras/upload', { method: 'POST', body: fd });
-            alert((await res.json()).message || "Erro");
-            loadCompras(); loadEstoqueReal();
-        }
-        async function deleteCompra(id) {
-            if(confirm("Excluir este item?")) { await fetch(`/api/compras/${id}`, { method: 'DELETE' }); loadCompras(); }
-        }
-        async function deleteCompraData() {
-            const date = prompt("Digite a data para excluir tudo (YYYY-MM-DD):");
-            if(date && confirm("Tem certeza?")) { await fetch(`/api/compras/data/${date}`, { method: 'DELETE' }); loadCompras(); }
+            await fetch('/api/compras/upload', { method: 'POST', body: fd }); loadCompras(); loadEstoqueReal();
         }
 
-        // --- SAÍDAS / VENDAS ---
+        // --- VENDAS ---
         async function loadWeeks() {
-            const res = await fetch('/api/weeks');
-            const data = await res.json();
+            const data = await (await fetch('/api/weeks')).json();
             document.getElementById('weeksList').innerHTML = data.map(w => `
-                <div class="glass-panel p-5 rounded-xl flex flex-col justify-between">
-                    <div class="flex justify-between items-start mb-4">
-                        <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">${w.week_code}</span>
-                        <div class="space-x-2">
-                            <button onclick="viewWeekDetails('${w.week_code}')" class="text-slate-400 hover:text-white" title="Ver Detalhes"><i class="fas fa-eye"></i></button>
-                            <button onclick="deleteWeek('${w.week_code}')" class="text-slate-400 hover:text-red-400" title="Excluir"><i class="fas fa-trash"></i></button>
+                <div class="glass-panel rounded-xl overflow-hidden border border-slate-700 h-fit">
+                    <div class="p-4 bg-slate-800 cursor-pointer hover:bg-slate-700 transition" onclick="toggleWeek('${w.week_code}')">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="bg-blue-600 px-2 py-1 rounded text-white text-[11px] font-bold">${w.week_code}</span>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="event.stopPropagation(); deleteWeek('${w.week_code}')" class="text-slate-400 hover:text-white bg-red-500/10 hover:bg-red-500 px-2 py-0.5 rounded transition" title="Excluir este dia"><i class="fas fa-times text-[10px]"></i></button>
+                                <i class="fas fa-chevron-down text-slate-400 transition-transform ml-2" id="icon-week-${w.week_code}"></i>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <div><div class="text-[10px] text-slate-500 uppercase font-bold">Pratos Feitos</div><div class="font-black text-white text-lg">${w.total_portions}</div></div>
+                            <div class="text-right"><div class="text-[10px] text-slate-500 uppercase font-bold">Desconto Geral</div><div class="font-black text-red-400 text-lg">-${w.total_kg} kg</div></div>
                         </div>
                     </div>
-                    <div class="flex justify-between">
-                        <div><div class="text-[10px] text-slate-500 uppercase">Pratos</div><div class="font-bold text-white">${w.total_portions}</div></div>
-                        <div class="text-right"><div class="text-[10px] text-slate-500 uppercase">Desconto</div><div class="font-bold text-red-400">-${w.total_kg} kg</div></div>
+                    <div id="detail-${w.week_code}" class="hidden bg-slate-900 border-t border-slate-700 p-3 max-h-60 overflow-y-auto custom-scrollbar">
+                        <div class="text-center text-slate-500 text-xs py-2 loading-text"><i class="fas fa-spinner fa-spin mr-2"></i>Buscando descontos...</div>
                     </div>
                 </div>
             `).join('');
         }
-        async function viewWeekDetails(code) {
-            const res = await fetch(`/api/weeks/${code}`);
-            const data = await res.json();
-            document.getElementById('weekDetailTitle').innerText = `Detalhes: ${code} (${data.total_portions} pratos)`;
-            document.getElementById('weekDetailBody').innerHTML = data.records.map(r => `
-                <tr class="hover:bg-slate-800/30">
-                    <td class="py-2 text-slate-300">${r.ingredient}</td>
-                    <td class="py-2 text-right text-red-400 font-semibold">-${r.kg}</td>
-                </tr>
-            `).join('');
-            document.getElementById('weekDetailContainer').classList.remove('hidden');
+        async function toggleWeek(code) {
+            const div = document.getElementById(`detail-${code}`); const icon = document.getElementById(`icon-week-${code}`);
+            div.classList.toggle('hidden'); icon.style.transform = div.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+            if(div.classList.contains('hidden') || !div.innerHTML.includes('loading-text')) return;
+            try {
+                const data = await (await fetch(`/api/weeks/${code}`)).json();
+                div.innerHTML = `<table class="w-full text-left text-[11px]"><tbody>` + data.records.map(r => `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30"><td class="py-1.5 text-slate-300">${r.ingredient}</td><td class="py-1.5 text-right font-bold text-red-400">-${r.kg}</td></tr>`).join('') + `</tbody></table>`;
+            } catch(e) { div.innerHTML = `<div class="text-center text-red-400 text-xs py-2">Detalhes não encontrados.</div>`; }
         }
         async function uploadWeek() {
             const file = document.getElementById('weekFile').files[0];
             if(!file) return;
             const fd = new FormData(); fd.append('file', file);
-            const res = await fetch('/api/weeks/upload', { method: 'POST', body: fd });
-            alert((await res.json()).message || "Erro"); loadWeeks(); loadEstoqueReal();
+            await fetch('/api/weeks/upload', { method: 'POST', body: fd }); loadWeeks(); loadEstoqueReal();
         }
         async function deleteWeek(code) {
-            if(confirm("Excluir vendas desta semana/dia?")) { await fetch(`/api/weeks/${code}`, { method: 'DELETE' }); loadWeeks(); }
+            if(confirm(`EXCLUIR as vendas do dia ${code}? O estoque será restaurado.`)) { await fetch(`/api/weeks/${code}`, { method: 'DELETE' }); loadWeeks(); loadEstoqueReal(); }
         }
 
         // --- RELATÓRIOS ---
@@ -579,73 +608,154 @@
             if(start) url += `start=${start}&`;
             if(end) url += `end=${end}`;
 
-            const res = await fetch(url);
-            const data = await res.json();
-
+            const data = await (await fetch(url)).json();
             document.getElementById('repPortions').innerText = data.total_portions || 0;
             document.getElementById('repKg').innerText = data.total_kg || 0;
             document.getElementById('reportBody').innerHTML = (data.records || []).map(r => `
-                <tr class="hover:bg-slate-800/50">
-                    <td class="px-6 py-3 text-slate-300 font-medium">${r.ingredient}</td>
+                <tr class="hover:bg-slate-800/50 cursor-pointer group transition-colors border-b border-slate-800/50" onclick="showDishesForIngredient('${r.ingredient}')">
+                    <td class="px-6 py-3 text-slate-300 font-medium group-hover:text-blue-400 flex items-center justify-between">
+                        ${r.ingredient} <span class="text-[10px] bg-blue-600/20 text-blue-400 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition shadow"><i class="fas fa-eye mr-1"></i>Ver Pratos</span>
+                    </td>
                     <td class="px-6 py-3 text-right text-emerald-400 font-bold">${r.kg}</td>
                 </tr>
             `).join('');
-            
             document.getElementById('reportResults').classList.remove('hidden');
         }
 
-        // --- FICHAS TÉCNICAS ---
+        function showDishesForIngredient(ingName) {
+            const dishes = [];
+            if(window.recipesMap) {
+                for(let [dish, ings] of window.recipesMap.entries()) {
+                    const found = ings.find(i => i.ingredient === ingName);
+                    if(found) dishes.push({ dish, grams: found.grams_per_portion });
+                }
+            }
+            
+            let html = `<p class="text-sm text-slate-400 mb-4">O ingrediente <strong class="text-white">${ingName}</strong> compõe as seguintes fichas técnicas ativas no momento:</p>`;
+            if(dishes.length === 0) {
+                html += `<div class="p-4 bg-slate-800 rounded-lg border border-slate-700 text-slate-400 text-sm text-center">Nenhum prato do cardápio atual utiliza este ingrediente.</div>`;
+            } else {
+                html += `<ul class="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">`;
+                dishes.forEach(d => { html += `<li class="flex justify-between items-center p-3 bg-slate-800 rounded-lg border border-slate-700"><span class="font-bold text-white text-sm">${d.dish}</span><span class="text-blue-400 font-bold bg-blue-500/10 px-2 py-1 rounded text-xs">${d.grams}g <span class="font-normal opacity-70">por porção</span></span></li>`; });
+                html += `</ul>`;
+            }
+
+            document.getElementById('modalTitle').innerText = `Onde vai o ${ingName}?`;
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('sysModal').classList.remove('hidden');
+        }
+
+        // --- FICHAS TÉCNICAS (COM EXCLUSÃO DE INGREDIENTE) ---
         async function loadRecipes() {
-            const res = await fetch('/api/recipes/list');
-            const data = await res.json();
-            const map = new Map();
-            data.forEach(r => { if(!map.has(r.dish)) map.set(r.dish, []); map.get(r.dish).push(r); });
-            document.getElementById('recipesList').innerHTML = Array.from(map.entries()).map(([dish, ings]) => `
-                <div class="glass-panel p-5 rounded-xl relative group">
-                    <button onclick="deleteRecipe('${dish}')" class="absolute top-3 right-3 text-slate-600 hover:text-red-500 hidden group-hover:block"><i class="fas fa-times"></i></button>
-                    <h4 class="font-bold text-white mb-3 text-sm pr-6 border-b border-slate-700 pb-2">${dish}</h4>
-                    <ul class="space-y-1.5 h-32 overflow-y-auto custom-scrollbar">
-                        ${ings.map(ing => `<li class="text-xs flex justify-between"><span class="text-slate-400 truncate pr-2">${ing.ingredient}</span><span class="text-blue-400 font-semibold">${ing.grams_per_portion}g</span></li>`).join('')}
+            const data = await (await fetch('/api/recipes/list')).json();
+            window.recipesMap = new Map();
+            data.forEach(r => { if(!window.recipesMap.has(r.dish)) window.recipesMap.set(r.dish, []); window.recipesMap.get(r.dish).push(r); });
+            
+            document.getElementById('recipesList').innerHTML = Array.from(window.recipesMap.entries()).map(([dish, ings]) => `
+                <div class="glass-panel rounded-xl flex flex-col h-full border-t-2 border-t-blue-500">
+                    <div class="p-3 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/50 relative group">
+                        <h4 class="font-bold text-white text-sm truncate pr-6" title="${dish}">${dish}</h4>
+                        <button onclick="deleteRecipe('${dish}')" class="absolute top-3 right-3 text-slate-600 hover:text-red-500 hidden group-hover:block transition" title="Excluir Prato Inteiro"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <ul class="p-3 flex-1 overflow-y-auto custom-scrollbar h-[150px]">
+                        ${ings.map(ing => `
+                            <li class="text-[11px] flex justify-between items-center group/item border-b border-slate-700/30 pb-1 mb-1 last:border-0">
+                                <span class="text-slate-400 truncate pr-2 group-hover/item:text-slate-200 transition">${ing.ingredient}</span>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-blue-400 font-bold">${ing.grams_per_portion}g</span>
+                                    <button onclick="deleteIngredient('${dish}', '${ing.ingredient}')" class="text-slate-600 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition" title="Remover este ingrediente"><i class="fas fa-times text-sm"></i></button>
+                                </div>
+                            </li>
+                        `).join('')}
                     </ul>
+                    <div class="p-2 border-t border-slate-700/50 bg-slate-900/50">
+                        <button onclick="openAddIngredientModal('${dish}')" class="w-full text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-700 py-1.5 rounded transition">+ Adicionar Ingrediente</button>
+                    </div>
                 </div>
             `).join('');
         }
+
+        async function deleteIngredient(dish, ingredientName) {
+            if(!confirm(`Remover [${ingredientName}] da ficha [${dish}]?`)) return;
+            
+            const existing = window.recipesMap.get(dish) || [];
+            const filtered = existing.filter(i => i.ingredient !== ingredientName);
+            
+            if (filtered.length === 0) {
+                if(confirm(`Este era o último ingrediente. Deseja excluir a ficha inteira?`)) { await fetch(`/api/recipes/${encodeURIComponent(dish)}`, { method: 'DELETE' }); loadRecipes(); }
+                return;
+            }
+
+            let csv = 'Prato,Ingrediente,Quantidade\n';
+            filtered.forEach(i => { csv += `"${dish}","${i.ingredient}",${i.grams_per_portion}\n`; });
+            const fd = new FormData(); fd.append('file', new File([new Blob([csv], { type: 'text/csv' })], 'update.csv', { type: 'text/csv' }));
+            await fetch('/api/recipes/upload', { method: 'POST', body: fd }); loadRecipes(); 
+        }
+
+        function openAddIngredientModal(dish) {
+            document.getElementById('modalTitle').innerText = `Editar Ficha: ${dish}`;
+            document.getElementById('modalBody').innerHTML = `
+                <div class="space-y-4">
+                    <div><label class="block text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">Nome do Ingrediente</label>
+                    <input type="text" id="newIngName" class="input-dark w-full rounded-lg px-3 py-2 text-sm" placeholder="Ex: FILE MIGNON"></div>
+                    <div><label class="block text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">Gramas por Porção</label>
+                    <input type="number" id="newIngGrams" class="input-dark w-full rounded-lg px-3 py-2 text-sm" placeholder="Ex: 150"></div>
+                    <button onclick="saveNewIngredient('${dish}')" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold mt-2 transition shadow-lg shadow-blue-500/20">Adicionar à Receita</button>
+                </div>
+            `;
+            document.getElementById('sysModal').classList.remove('hidden');
+        }
+
+        async function saveNewIngredient(dish) {
+            const name = document.getElementById('newIngName').value.trim().toUpperCase();
+            const grams = parseInt(document.getElementById('newIngGrams').value);
+            if(!name || isNaN(grams) || grams <= 0) return alert("Preencha corretamente.");
+
+            const existing = window.recipesMap.get(dish) || [];
+            const filtered = existing.filter(i => i.ingredient !== name);
+            filtered.push({ ingredient: name, grams_per_portion: grams });
+
+            let csv = 'Prato,Ingrediente,Quantidade\n';
+            filtered.forEach(i => { csv += `"${dish}","${i.ingredient}",${i.grams_per_portion}\n`; });
+            const fd = new FormData(); fd.append('file', new File([new Blob([csv], { type: 'text/csv' })], 'update.csv', { type: 'text/csv' }));
+
+            document.getElementById('modalBody').innerHTML = '<div class="text-center text-blue-500 py-4"><i class="fas fa-spinner fa-spin text-2xl"></i><p class="mt-2 text-sm">Salvando ficha...</p></div>';
+            await fetch('/api/recipes/upload', { method: 'POST', body: fd }); closeModal(); loadRecipes();
+        }
+
         async function uploadRecipes() {
             const file = document.getElementById('recipeFile').files[0];
             if(!file) return;
             const fd = new FormData(); fd.append('file', file);
-            const res = await fetch('/api/recipes/upload', { method: 'POST', body: fd });
-            alert((await res.json()).message || "Erro"); loadRecipes();
+            await fetch('/api/recipes/upload', { method: 'POST', body: fd }); loadRecipes();
         }
         async function deleteRecipe(name) {
-            if(confirm(`Excluir ficha de ${name}?`)) { await fetch(`/api/recipes/${encodeURIComponent(name)}`, { method: 'DELETE' }); loadRecipes(); }
+            if(confirm(`Excluir a ficha inteira de ${name}?`)) { await fetch(`/api/recipes/${encodeURIComponent(name)}`, { method: 'DELETE' }); loadRecipes(); }
         }
 
-        // --- LOGS ---
+        // --- LOGS E UTILITÁRIOS ---
         async function loadLogs() {
-            const res = await fetch('/api/upload-logs');
-            document.getElementById('logsBody').innerHTML = (await res.json()).map(l => `
-                <tr class="hover:bg-slate-800/50">
-                    <td class="px-6 py-3 text-slate-400 text-xs">${new Date(l.created_at).toLocaleString('pt-BR')}</td>
-                    <td class="px-6 py-3"><span class="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${l.type}</span></td>
-                    <td class="px-6 py-3 text-white text-xs truncate max-w-[200px]" title="${l.filename}">${l.filename}</td>
-                    <td class="px-6 py-3 text-emerald-400 font-semibold text-xs">${l.result || ''}</td>
-                    <td class="px-6 py-3 text-center"><button onclick="deleteLog('${l.id}')" class="text-slate-500 hover:text-red-400"><i class="fas fa-trash"></i></button></td>
+            const data = await (await fetch('/api/upload-logs')).json();
+            document.getElementById('logsBody').innerHTML = data.map(l => `
+                <tr class="hover:bg-slate-800/30">
+                    <td class="px-6 py-2 text-slate-500 text-[11px]">${new Date(l.created_at).toLocaleString('pt-BR')}</td>
+                    <td class="px-6 py-2"><span class="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${l.type}</span></td>
+                    <td class="px-6 py-2 text-white text-xs truncate max-w-[200px]" title="${l.filename}">${l.filename}</td>
+                    <td class="px-6 py-2 text-emerald-400 font-semibold text-[11px]">${l.result || ''}</td>
+                    <td class="px-6 py-2"><button onclick="deleteLog('${l.id}')" class="text-slate-600 hover:text-red-500"><i class="fas fa-trash"></i></button></td>
                 </tr>
             `).join('');
         }
         async function deleteLog(id) { await fetch(`/api/uploads/${id}`, { method: 'DELETE' }); loadLogs(); }
 
-        // --- RESET DATA ---
-        async function deleteAllData() {
-            if(prompt("PERIGO EXTREMO! Digite 'DELETAR' para apagar todas as fichas, estoque e banco de dados.") === "DELETAR") {
-                const res = await fetch('/api/all', { method: 'DELETE' }); alert((await res.json()).message); location.reload();
-            }
+        function toggleElement(divId, iconId) {
+            const div = document.getElementById(divId); const icon = document.getElementById(iconId);
+            div.classList.toggle('hidden'); icon.style.transform = div.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
         }
 
         // --- INIT ---
         loadDashboard();
-        setInterval(loadEstoqueReal, 120000); // Auto-refresh estoque a cada 2 min
+        setInterval(loadEstoqueReal, 120000); 
     </script>
 </body>
 </html>
