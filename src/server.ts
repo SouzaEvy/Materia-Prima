@@ -1,86 +1,3 @@
-/**
- * controle-materia-prima — Backend (Express + TypeScript + Supabase)
- *
- * ============================================================
- * SETUP INSTRUCTIONS
- * ============================================================
- *
- * 1. CREATE FREE SUPABASE PROJECT
- * → https://app.supabase.com  → New project
- *
- * 2. CREATE TABLES — paste this SQL in the Supabase SQL Editor:
- *
- * -- Enable UUID extension (usually already on)
- * create extension if not exists "uuid-ossp";
- *
- * create table if not exists recipes (
- * id           uuid primary key default uuid_generate_v4(),
- * name         text unique not null,
- * created_at   timestamptz default now()
- * );
- *
- * create table if not exists recipe_ingredients (
- * id                uuid primary key default uuid_generate_v4(),
- * recipe_id         uuid references recipes(id) on delete cascade,
- * ingredient        text not null,
- * grams_per_portion integer not null,
- * created_at        timestamptz default now()
- * );
- *
- * create table if not exists weeks (
- * id             uuid primary key default uuid_generate_v4(),
- * week_code      text unique not null,
- * total_portions integer not null default 0,
- * created_at     timestamptz default now()
- * );
- *
- * create table if not exists consumption_records (
- * id          uuid primary key default uuid_generate_v4(),
- * week_id     uuid references weeks(id) on delete cascade,
- * ingredient  text not null,
- * kg          numeric not null,
- * created_at  timestamptz default now()
- * );
- *
- * create table if not exists upload_logs (
- * id          uuid primary key default uuid_generate_v4(),
- * type        text not null,
- * filename    text not null,
- * week_code   text,
- * result      text,
- * created_at  timestamptz default now()
- * );
- *
- * -- RLS: disable for service_role (backend-only tool, no public access)
- * alter table recipes              enable row level security;
- * alter table recipe_ingredients   enable row level security;
- * alter table weeks                enable row level security;
- * alter table consumption_records  enable row level security;
- * alter table upload_logs          enable row level security;
- *
- * -- Allow all via service_role key (used only in backend)
- * create policy "service_role full access recipes" on recipes for all using (true) with check (true);
- * create policy "service_role full access recipe_ingredients" on recipe_ingredients for all using (true) with check (true);
- * create policy "service_role full access weeks" on weeks for all using (true) with check (true);
- * create policy "service_role full access consumption_records" on consumption_records for all using (true) with check (true);
- * create policy "service_role full access upload_logs" on upload_logs for all using (true) with check (true);
- *
- * 3. GET KEYS
- * → Supabase Dashboard → Settings → API
- * → Copy "Project URL" and "service_role" secret key
- *
- * 4. CREATE .env FILE in project root:
- * SUPABASE_URL=https://your-project-ref.supabase.co
- * SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
- * PORT=3000
- *
- * 5. INSTALL & RUN:
- * npm install
- * npm run dev
- * → open http://localhost:3000
- *
- * ============================================================
- */
 
 import * as cheerio from 'cheerio';
 import 'dotenv/config';
@@ -113,6 +30,41 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ==========================================
+// 🌍 ROTA PÚBLICA (DEVE FICAR AQUI NO TOPO!)
+// ==========================================
+app.get('/api/config', (req: Request, res: Response) => {
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY
+  });
+});
+
+// ==========================================
+// 🛡️ SISTEMA DE AUTENTICAÇÃO (SUPABASE AUTH)
+// ==========================================
+app.use('/api', async (req: Request, res: Response, next: NextFunction) => {
+  // O Webhook do Make NÃO pode ser bloqueado!
+  if (req.path === '/agile/webhook' || req.path === '/config') return next();
+
+  // Procura o token enviado pelo frontend
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Acesso negado. Token não fornecido.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  
+  // O próprio Supabase verifica se o token é válido e real
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    return res.status(401).json({ error: 'Sessão inválida ou expirada. Faça login.' });
+  }
+
+  next(); // Passaporte validado pelo Supabase!
+});
 
 // ── Configuração para o painel abrir na produção (Railway) ──
 const publicPath = path.join(process.cwd(), 'public');
