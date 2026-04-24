@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import { parse as parseDate, isValid } from 'date-fns';
 
 // ── Environment ─────────────────────────────────────────────
+
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
