@@ -400,6 +400,40 @@ app.post(
   }
 );
 
+// ==========================================
+// 📦 SAÍDA MANUAL DE ESTOQUE
+// ==========================================
+app.post('/api/saida-manual', async (req: Request, res: Response) => {
+  try {
+    const { data_saida, itens } = req.body;
+    if (!data_saida || !itens || !itens.length) {
+      return res.status(400).json({ error: 'Data ou itens ausentes.' });
+    }
+
+    // Cria uma "semana/lote" com a tag MANUAL para não se misturar com o PDV
+    const weekCode = `MANUAL-${data_saida}-${Math.floor(Date.now() / 1000)}`;
+    
+    const { data: upsertedWeek, error: weekErr } = await supabase.from('weeks')
+      .upsert({ week_code: weekCode, total_portions: 0 }, { onConflict: 'week_code' })
+      .select('id').single();
+      
+    if (weekErr || !upsertedWeek) throw new Error('Erro ao criar o lote manual.');
+
+    const records = itens.map((i: any) => ({
+      week_id: upsertedWeek.id,
+      ingredient: i.produto,
+      kg: parseFloat(i.quantidade)
+    }));
+
+    const { error: recErr } = await supabase.from('consumption_records').insert(records);
+    if (recErr) throw new Error('Erro ao abater ingredientes do banco.');
+
+    res.json({ success: true, message: 'Saída manual registrada com sucesso!' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Route: POST /api/agile/webhook (HTML via Zapier) ───────────
 // ── WEBHOOK AGILE PDV (Recebe o email do Zapier em HTML) ──
 app.post('/api/agile/webhook', async (req: Request, res: Response) => {
@@ -1066,6 +1100,97 @@ app.get('/api/upload-logs', async (_req: Request, res: Response): Promise<void> 
     if (error) throw new Error(error.message);
     res.json(data ?? []);
   } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
+// 📦 ESTOQUE MANUAL (ALMOXARIFADO / AVULSOS)
+// ==========================================
+app.get('/api/estoque-manual', async (req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabase.from('estoque_manual').select('*').order('produto');
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/estoque-manual', async (req: Request, res: Response) => {
+  try {
+    const { produto, categoria, quantidade } = req.body;
+    const { error } = await supabase.from('estoque_manual').insert({ produto, categoria, quantidade });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/estoque-manual/:id', async (req: Request, res: Response) => {
+  try {
+    const { quantidade } = req.body;
+    const { error } = await supabase.from('estoque_manual').update({ quantidade }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/estoque-manual/:id', async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabase.from('estoque_manual').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ==========================================
+// 📦 UPLOAD DE CSV PARA ESTOQUE MANUAL (SECO)
+// ==========================================
+app.post('/api/estoque-manual/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) throw new Error('Nenhum arquivo enviado.');
+    
+    const fsLib = require('fs');
+    const raw = fsLib.readFileSync(req.file.path);
+    let fileContent = raw.toString('utf8');
+    if (fileContent.includes('')) fileContent = raw.toString('latin1'); // Corrige acentos PT-BR
+    
+    const linhas = fileContent.split(/\r?\n/);
+    if (linhas.length < 2) throw new Error('Arquivo vazio ou sem cabeçalho.');
+
+    const delimitador = linhas[0].includes(';') ? ';' : ',';
+    const cabecalhos = linhas[0].split(delimitador).map((c: string) => c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim());
+    
+    const idxProduto = cabecalhos.findIndex((c: string) => c.includes('produto') || c.includes('descricao') || c.includes('nome'));
+    const idxQtd = cabecalhos.findIndex((c: string) => c.includes('quantidade') || c.includes('qtd') || c.includes('saldo'));
+    
+    if (idxProduto === -1 || idxQtd === -1) {
+      throw new Error('As colunas "Produto" e "Quantidade" não foram encontradas no CSV.');
+    }
+
+    const records = [];
+    for (let i = 1; i < linhas.length; i++) {
+      if (!linhas[i].trim()) continue;
+      const colunas = linhas[i].split(delimitador);
+      const produto = colunas[idxProduto]?.replace(/"/g, '').trim();
+      let qtdRaw = String(colunas[idxQtd] || '0').replace(/"/g, '').trim();
+      
+      if (qtdRaw.includes(',')) qtdRaw = qtdRaw.replace(/\./g, '').replace(',', '.');
+      const quantidade = parseFloat(qtdRaw);
+
+      if (produto && !isNaN(quantidade)) {
+        // Salva automaticamente com a categoria "Estoque Seco"
+        records.push({ produto, categoria: 'Estoque Seco', quantidade });
+      }
+    }
+
+    if (records.length > 0) {
+      const { error } = await supabase.from('estoque_manual').insert(records);
+      if (error) throw error;
+    }
+
+    res.json({ success: true, message: `✅ ${records.length} itens de Estoque Seco importados!` });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e){} }
+  }
 });
 
 // ── Error middleware ─────────────────────────────────────────
