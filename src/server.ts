@@ -401,177 +401,189 @@ app.post(
 );
 
 // ==========================================
-// 📦 SAÍDA MANUAL DE ESTOQUE
+// 📦 ESTOQUE MANUAL (AUDITORIA E BALANÇO VIA CSV)
 // ==========================================
-app.post('/api/saida-manual', async (req: Request, res: Response) => {
+app.get('/api/estoque-manual', async (req: Request, res: Response) => {
   try {
-    const { data_saida, itens } = req.body;
-    if (!data_saida || !itens || !itens.length) {
-      return res.status(400).json({ error: 'Data ou itens ausentes.' });
-    }
-
-    // Cria uma "semana/lote" com a tag MANUAL para não se misturar com o PDV
-    const weekCode = `MANUAL-${data_saida}-${Math.floor(Date.now() / 1000)}`;
-    
-    const { data: upsertedWeek, error: weekErr } = await supabase.from('weeks')
-      .upsert({ week_code: weekCode, total_portions: 0 }, { onConflict: 'week_code' })
-      .select('id').single();
-      
-    if (weekErr || !upsertedWeek) throw new Error('Erro ao criar o lote manual.');
-
-    const records = itens.map((i: any) => ({
-      week_id: upsertedWeek.id,
-      ingredient: i.produto,
-      kg: parseFloat(i.quantidade)
-    }));
-
-    const { error: recErr } = await supabase.from('consumption_records').insert(records);
-    if (recErr) throw new Error('Erro ao abater ingredientes do banco.');
-
-    res.json({ success: true, message: 'Saída manual registrada com sucesso!' });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+    const { data, error } = await supabase.from('estoque_manual').select('*').order('produto');
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Route: POST /api/agile/webhook (HTML via Zapier) ───────────
-// ── WEBHOOK AGILE PDV (Recebe o email do Zapier em HTML) ──
-app.post('/api/agile/webhook', async (req: Request, res: Response) => {
+app.post('/api/estoque-manual', async (req: Request, res: Response) => {
   try {
-    const { body_html, subject } = req.body;
-    if (!body_html) return res.status(400).json({ error: 'Email HTML vazio' });
-
-    const $ = cheerio.load(body_html);
-    const rows: { descricao: string; qtd: number }[] = [];
-
-    // Tenta extrair a data do Assunto do email
-    const dateMatch = subject?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    
-    // Se achar a data no email usa ela, senão usa o dia de hoje
-    let reportCode = new Date().toISOString().split('T')[0]; 
-    if (dateMatch) {
-      reportCode = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-    }
-    
-    // O weekCode agora passa a ser a data exata do dia (Ex: 2026-03-23)
-    const weekCode = reportCode;
-
-    // 1. ISOLAR A TABELA CERTA (Produtos Vendidos Diários)
-    // O Agile manda várias tabelas iguais (Top 20 mensal, etc). 
-    // A tabela de vendas DIÁRIAS é SEMPRE a última do email!
-    const productTables: any[] = [];
-    
-    $('table').each((_, table) => {
-      const firstRow = $(table).find('tr').first().text().toLowerCase();
-      const secondRow = $(table).find('tr').eq(1).text().toLowerCase();
-      
-      if (
-        (firstRow.includes('produto') && firstRow.includes('quantidade')) ||
-        (secondRow.includes('produto') && secondRow.includes('quantidade'))
-      ) {
-        productTables.push(table);
-      }
+    // Inserção Manual de Produto Novo (Inicia com diferença zero)
+    const { produto, categoria, quantidade } = req.body;
+    const { error } = await supabase.from('estoque_manual').insert({ 
+      produto, categoria, quantidade, diferenca: 0, justificativa: null 
     });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-    if (productTables.length === 0) return res.status(400).json({ error: 'Nenhuma tabela de produtos encontrada.' });
+app.delete('/api/estoque-manual/:id', async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabase.from('estoque_manual').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-    // Pega APENAS a última tabela
-    const targetTable = productTables[productTables.length - 1]; 
+// Salvar Justificativa
+app.put('/api/estoque-manual/justificativa/:id', async (req: Request, res: Response) => {
+  try {
+    const { justificativa } = req.body;
+    const { error } = await supabase.from('estoque_manual').update({ justificativa }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
 
-    // Extrai os itens
-    $(targetTable).find('tr').each((_, el) => {
-      const cols = $(el).find('td');
-      if (cols.length >= 2) {
-        const descricao = $(cols[0]).text().trim();
-        const qtd = parseFloat($(cols[1]).text().replace(',', '.'));
-        
-        if (descricao && descricao.toLowerCase() !== 'produto' && !isNaN(qtd) && qtd > 0) {
-          rows.push({ descricao, qtd });
+// ==========================================
+// 🛎️ UPLOAD DE VENDAS (PDV) - CAÇADOR BLINDADO
+// ==========================================
+app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) throw new Error('Nenhum arquivo enviado.');
+
+    const fsLib = require('fs');
+    const raw = fsLib.readFileSync(req.file.path);
+    let fileContent = raw.toString('utf8');
+    if (fileContent.includes('')) fileContent = raw.toString('latin1'); // Correção de acentuação forte
+
+    const linhasRaw = fileContent.split(/\r?\n/);
+
+    // ---------------------------------------------------------
+    // 1. TENTATIVA DIRETA DE ACHAR O FATURAMENTO
+    // ---------------------------------------------------------
+    let valorTotalVenda = 0;
+    for (const linha of linhasRaw) {
+        const l = linha.toUpperCase().replace(/"/g, ''); // Limpa sujeiras
+        // Busca a palavra-chave e extrai o dinheiro na mesma linha
+        if (l.includes('PRODUTOS VENDIDOS')) {
+            const match = l.match(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}/);
+            if (match) {
+                valorTotalVenda = parseFloat(match[0].replace(/\./g, '').replace(',', '.'));
+                break;
+            }
         }
-      }
+    }
+
+    // ---------------------------------------------------------
+    // 2. ENCONTRAR A TABELA DE PRATOS (Lendo de baixo pra cima)
+    // ---------------------------------------------------------
+    let linhaCabecalhoIdx = -1;
+    let delim = ',';
+
+    for (let i = linhasRaw.length - 1; i >= 0; i--) {
+        const l = linhasRaw[i].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/"/g, '');
+        if ((l.includes('produto') || l.includes('descricao')) && (l.includes('quantidade') || l.includes('qtd'))) {
+            linhaCabecalhoIdx = i;
+            if (linhasRaw[i].includes(';')) delim = ';';
+            else if (linhasRaw[i].includes('\t')) delim = '\t';
+            break;
+        }
+    }
+
+    if (linhaCabecalhoIdx === -1) throw new Error('Não encontrei as colunas "Produto" e "Quantidade" no CSV.');
+
+    const cabecalhos = linhasRaw[linhaCabecalhoIdx].split(delim).map((c: string) => c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim());
+    
+    // Busca flexível de colunas
+    const finalIdxPrato = cabecalhos.findIndex((c: string) => c === 'produto' || c === 'descricao' || c === 'prato' || c === 'nome' || c.includes('produto'));
+    const finalIdxQtd = cabecalhos.findIndex((c: string) => c === 'quantidade' || c === 'qtd' || c.includes('quant') || c.includes('qtd'));
+    const finalIdxValor = cabecalhos.findIndex((c: string) => c === 'total' || c === 'valor total' || c === 'valor' || c.includes('total'));
+
+    const pratosVendidos = new Map();
+    let somaFallback = 0; // O nosso plano B para o Faturamento
+
+    for (let i = linhaCabecalhoIdx + 1; i < linhasRaw.length; i++) {
+        if (!linhasRaw[i].trim()) continue;
+        const colunas = linhasRaw[i].split(delim);
+
+        const pratoStr = colunas[finalIdxPrato]?.replace(/"/g, '').trim().toUpperCase() || '';
+        if (!pratoStr || pratoStr.includes('TOTAL') || pratoStr.includes('SUBTOTAL') || pratoStr.includes('PAGAMENTO')) continue;
+
+        let qtdRaw = String(colunas[finalIdxQtd] || '0').replace(/"/g, '').trim();
+        if (qtdRaw.includes(',')) qtdRaw = qtdRaw.replace(/\./g, '').replace(',', '.');
+        const qtd = parseFloat(qtdRaw);
+
+        let valL = 0;
+        if (finalIdxValor !== -1 && colunas[finalIdxValor]) {
+            let vRaw = String(colunas[finalIdxValor]).replace(/"/g, '').replace('R$', '').trim();
+            if (vRaw.includes(',')) vRaw = vRaw.replace(/\./g, '').replace(',', '.');
+            valL = parseFloat(vRaw);
+        }
+
+        if (qtd > 0) {
+            pratosVendidos.set(pratoStr, (pratosVendidos.get(pratoStr) || 0) + qtd);
+            if (!isNaN(valL)) somaFallback += valL;
+        }
+    }
+
+    // Se o CSV for uma bagunça e não achou a palavra "Produtos vendidos" no topo, usa a soma dos itens!
+    if (valorTotalVenda === 0 && somaFallback > 0) {
+        valorTotalVenda = somaFallback;
+    }
+
+    // ---------------------------------------------------------
+    // 3. RECIPES E CONSUMPTION (Abatimento)
+    // ---------------------------------------------------------
+    const { data: recipes, error: errRec } = await supabase.from('recipes').select('*');
+    if (errRec) throw errRec;
+
+    const recipesMap = new Map();
+    recipes.forEach((r: any) => {
+      const p = r.dish.toUpperCase();
+      if (!recipesMap.has(p)) recipesMap.set(p, []);
+      recipesMap.get(p).push(r);
     });
 
-    if (rows.length === 0) return res.status(400).json({ error: 'Nenhum produto encontrado na tabela diária' });
+    const consumptionMap = new Map();
+    let totalKgGlobal = 0;
+    let totalPortions = 0;
 
-    // Busca fichas
-    const { data: allIngredients } = await supabase.from('recipe_ingredients').select('ingredient, grams_per_portion, recipes(name)');
-    const recipeIngMap = new Map<string, { ingredient: string; grams: number }[]>();
-
-    for (const row of (allIngredients ?? [])) {
-      const recipesField = row.recipes as unknown as { name: string } | { name: string }[] | null;
-      if (!recipesField) continue;
-      const recipeName = Array.isArray(recipesField) ? recipesField[0]?.name : recipesField.name;
-      if (!recipeName) continue;
-      
-      const key = recipeName.toLowerCase().trim();
-      if (!recipeIngMap.has(key)) recipeIngMap.set(key, []);
-      recipeIngMap.get(key)!.push({ ingredient: String(row.ingredient), grams: Number(row.grams_per_portion) });
-    }
-
-    let dailyPortions = 0;
-    const dailyIngredientTotals: Record<string, number> = {};
-    let skipped = 0;
-
-    for (const row of rows) {
-      const recipe = recipeIngMap.get(row.descricao.toLowerCase());
-      if (!recipe) { skipped++; continue; } // Ignora itens sem ficha
-      
-      dailyPortions += row.qtd;
-      for (const ing of recipe) {
-        dailyIngredientTotals[ing.ingredient] = (dailyIngredientTotals[ing.ingredient] ?? 0) + (ing.grams * row.qtd);
+    for (const [prato, qtdVendida] of pratosVendidos.entries()) {
+      totalPortions += qtdVendida;
+      const ingredientes = recipesMap.get(prato);
+      if (ingredientes) {
+        ingredientes.forEach((ing: any) => {
+          const kgGasto = (ing.grams_per_portion * qtdVendida) / 1000;
+          totalKgGlobal += kgGasto;
+          consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kgGasto);
+        });
       }
     }
 
-    if (Object.keys(dailyIngredientTotals).length === 0) return res.status(400).json({ error: 'Nenhum item vendido no dia possui ficha.' });
+    // ---------------------------------------------------------
+    // 4. SALVAR DB COM OS PRATOS
+    // ---------------------------------------------------------
+    const weekCode = req.file.originalname.replace('.csv', '').trim() + '_' + Math.floor(Date.now() / 1000);
+    const pratosObj = Object.fromEntries(pratosVendidos);
 
-    // 2. LÓGICA DE SOMA (Acumular dias da semana)
-    let { data: existingWeek } = await supabase.from('weeks').select('id, total_portions').eq('week_code', weekCode).single();
-    
-    let finalPortions = dailyPortions;
-    let finalIngredientTotals = { ...dailyIngredientTotals };
+    const { data: upsertedWeek, error: weekErr } = await supabase.from('weeks')
+      .upsert({
+          week_code: weekCode, total_portions: totalPortions, total_kg: totalKgGlobal,
+          valor_total: valorTotalVenda, pratos_vendidos: pratosObj
+      }, { onConflict: 'week_code' })
+      .select('id').single();
 
-    if (existingWeek) {
-      // Se a semana já existe, soma as porções e os ingredientes
-      finalPortions += existingWeek.total_portions;
-      
-      const { data: existingRecords } = await supabase.from('consumption_records').select('ingredient, kg').eq('week_id', existingWeek.id);
-      
-      (existingRecords ?? []).forEach(r => {
-        const existingGrams = Number(r.kg) * 1000;
-        finalIngredientTotals[r.ingredient] = (finalIngredientTotals[r.ingredient] ?? 0) + existingGrams;
-      });
-      
-      // Limpa os antigos para inserir os dados somados
-      await supabase.from('consumption_records').delete().eq('week_id', existingWeek.id);
-    }
+    if (weekErr || !upsertedWeek) throw new Error('Erro ao criar registro da semana.');
 
-    // Salva a semana com a nova soma
-    const { data: upsertedWeek } = await supabase.from('weeks').upsert({ week_code: weekCode, total_portions: finalPortions }, { onConflict: 'week_code' }).select('id').single();
-    if (!upsertedWeek) throw new Error('Erro ao salvar semana');
-
-    // Salva os ingredientes somados
-    const newRecords = Object.entries(finalIngredientTotals).map(([ingredient, grams]) => ({
-      week_id: upsertedWeek.id,
-      ingredient,
-      kg: parseFloat((grams / 1000).toFixed(4))
+    const consumptionRecords = Array.from(consumptionMap.entries()).map(([ing, kg]) => ({
+      week_id: upsertedWeek.id, ingredient: ing, kg: kg
     }));
 
-    await supabase.from('consumption_records').insert(newRecords);
+    if (consumptionRecords.length > 0) {
+      await supabase.from('consumption_records').insert(consumptionRecords);
+    }
 
-    // Registra o upload automático
-    await supabase.from('upload_logs').insert({
-      type: 'agile_email',
-      filename: `Email Automático: ${subject}`,
-      week_code: weekCode,
-      result: `Vendas do dia somadas! ${rows.length - skipped} itens c/ ficha (${skipped} ignorados).`
-    });
+    res.json({ success: true, message: `Upload concluído com Sucesso!\n\nFaturamento: R$ ${valorTotalVenda.toFixed(2).replace('.', ',')}\nPratos Lidos: ${totalPortions}` });
 
-    return res.json({ success: true, message: `Webhook processou as vendas do dia e atualizou a semana.` });
-
-  } catch (err: any) {
-    console.error("Erro no Webhook:", err);
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+  finally { if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e){} } }
 });
 
 // ── DELETE Routes (Lixeiras) ─────────────────────────────────
@@ -1142,14 +1154,16 @@ app.delete('/api/estoque-manual/:id', async (req: Request, res: Response) => {
 // ==========================================
 // 📦 UPLOAD DE CSV PARA ESTOQUE MANUAL (SECO)
 // ==========================================
+// O Grande Balanço: Upload Separado por Tipo (Entrada, Saída ou Balanço)
 app.post('/api/estoque-manual/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
+    const tipo = req.query.tipo as string || 'balanco'; // Descobre em qual botão você clicou
     if (!req.file) throw new Error('Nenhum arquivo enviado.');
     
     const fsLib = require('fs');
     const raw = fsLib.readFileSync(req.file.path);
     let fileContent = raw.toString('utf8');
-    if (fileContent.includes('')) fileContent = raw.toString('latin1'); // Corrige acentos PT-BR
+    if (fileContent.includes('')) fileContent = raw.toString('latin1');
     
     const linhas = fileContent.split(/\r?\n/);
     if (linhas.length < 2) throw new Error('Arquivo vazio ou sem cabeçalho.');
@@ -1158,39 +1172,70 @@ app.post('/api/estoque-manual/upload', upload.single('file'), async (req: Reques
     const cabecalhos = linhas[0].split(delimitador).map((c: string) => c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim());
     
     const idxProduto = cabecalhos.findIndex((c: string) => c.includes('produto') || c.includes('descricao') || c.includes('nome'));
-    const idxQtd = cabecalhos.findIndex((c: string) => c.includes('quantidade') || c.includes('qtd') || c.includes('saldo'));
+    const idxQtd = cabecalhos.findIndex((c: string) => c.includes('quantidade') || c.includes('qtd') || c.includes('saldo') || c.includes('contagem'));
     
-    if (idxProduto === -1 || idxQtd === -1) {
-      throw new Error('As colunas "Produto" e "Quantidade" não foram encontradas no CSV.');
-    }
+    if (idxProduto === -1 || idxQtd === -1) throw new Error('Colunas "Produto" e "Quantidade" não encontradas no CSV.');
 
-    const records = [];
+    // Puxa o estoque antigo para comparar
+    const { data: estoqueAtual, error: errBusca } = await supabase.from('estoque_manual').select('*');
+    if (errBusca) throw errBusca;
+    const mapEstoque = new Map(estoqueAtual.map((e: any) => [e.produto.toUpperCase(), e]));
+
+    const recordsToInsert = [];
+    const recordsToUpdate = [];
+
     for (let i = 1; i < linhas.length; i++) {
       if (!linhas[i].trim()) continue;
       const colunas = linhas[i].split(delimitador);
       const produto = colunas[idxProduto]?.replace(/"/g, '').trim();
       let qtdRaw = String(colunas[idxQtd] || '0').replace(/"/g, '').trim();
-      
       if (qtdRaw.includes(',')) qtdRaw = qtdRaw.replace(/\./g, '').replace(',', '.');
-      const quantidade = parseFloat(qtdRaw);
+      const valorCSV = parseFloat(qtdRaw);
 
-      if (produto && !isNaN(quantidade)) {
-        // Salva automaticamente com a categoria "Estoque Seco"
-        records.push({ produto, categoria: 'Estoque Seco', quantidade });
+      if (produto && !isNaN(valorCSV)) {
+        const prodKey = produto.toUpperCase();
+        if (mapEstoque.has(prodKey)) {
+            const itemAtual = mapEstoque.get(prodKey);
+            let novaQuantidade = itemAtual.quantidade;
+            let diferenca = 0;
+            let justificativa = itemAtual.justificativa;
+
+            // A MÁGICA DA SEPARAÇÃO ACONTECE AQUI
+            if (tipo === 'entrada') {
+                novaQuantidade = itemAtual.quantidade + valorCSV; // Soma
+                diferenca = itemAtual.diferenca; // Não mexe na auditoria atual
+            } else if (tipo === 'saida') {
+                novaQuantidade = itemAtual.quantidade - valorCSV; // Subtrai
+                diferenca = -valorCSV; // A saída vira a pendência de auditoria
+                justificativa = null;  // Exige nova justificativa
+            } else { // balanço
+                novaQuantidade = valorCSV; // Substitui
+                diferenca = novaQuantidade - itemAtual.quantidade;
+                justificativa = diferenca === 0 ? itemAtual.justificativa : null;
+            }
+            
+            recordsToUpdate.push({
+                id: itemAtual.id, produto: itemAtual.produto, categoria: itemAtual.categoria,
+                quantidade: novaQuantidade, diferenca: diferenca, justificativa: justificativa
+            });
+        } else {
+            // PRODUTO NOVO NO SISTEMA
+            let qtdInicial = 0; let difInicial = 0;
+            if (tipo === 'entrada') { qtdInicial = valorCSV; }
+            else if (tipo === 'saida') { qtdInicial = -valorCSV; difInicial = -valorCSV; }
+            else { qtdInicial = valorCSV; }
+
+            recordsToInsert.push({ produto, categoria: 'Estoque Seco', quantidade: qtdInicial, diferenca: difInicial, justificativa: null });
+        }
       }
     }
 
-    if (records.length > 0) {
-      const { error } = await supabase.from('estoque_manual').insert(records);
-      if (error) throw error;
-    }
+    if (recordsToInsert.length > 0) await supabase.from('estoque_manual').insert(recordsToInsert);
+    if (recordsToUpdate.length > 0) await supabase.from('estoque_manual').upsert(recordsToUpdate);
 
-    res.json({ success: true, message: `✅ ${records.length} itens de Estoque Seco importados!` });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  } finally {
-    if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e){} }
-  }
+    res.json({ success: true, message: `Ação processada com sucesso no estoque!` });
+  } catch (err: any) { res.status(500).json({ error: err.message }); } 
+  finally { if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e){} } }
 });
 
 // ── Error middleware ─────────────────────────────────────────

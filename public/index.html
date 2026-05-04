@@ -28,6 +28,7 @@
 </head>
 <body class="h-screen flex flex-col md:flex-row overflow-hidden">
 
+    <!-- Topbar Mobile -->
     <div class="md:hidden bg-slate-900 border-b border-slate-800 p-4 flex justify-between items-center z-40 relative shadow-md">
         <div class="flex items-center space-x-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center"><i class="fas fa-cubes text-white text-sm"></i></div>
@@ -36,6 +37,7 @@
         <button onclick="toggleMobileMenu()" class="text-slate-400 hover:text-white p-2"><i class="fas fa-bars text-2xl"></i></button>
     </div>
 
+    <!-- TELA DE LOGIN OVERLAY -->
     <div id="loginOverlay" class="fixed inset-0 bg-slate-900 z-[200] flex items-center justify-center transition-opacity hidden">
         <div class="glass-panel p-8 rounded-2xl w-11/12 max-w-sm shadow-2xl">
             <div class="text-center mb-8">
@@ -51,6 +53,7 @@
         </div>
     </div>
 
+    <!-- Modal Genérico -->
     <div id="sysModal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-slate-700">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800">
@@ -61,6 +64,7 @@
         </div>
     </div>
 
+    <!-- Sidebar Responsiva -->
     <aside id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:translate-x-0 md:relative z-50 w-72 bg-slate-900 border-r border-slate-800 flex flex-col h-full transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none">
         <div class="p-6 border-b border-slate-800 flex justify-between items-center">
             <div class="flex items-center space-x-4">
@@ -72,15 +76,15 @@
 
         <nav class="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar" id="main-nav">
             <div class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-2 px-3">Painel</div>
-            <a href="#" data-section="dashboard" class="nav-link flex items-center space-x-3 p-3 rounded-lg bg-blue-600 text-white font-medium"><i class="fas fa-chart-line w-5 text-center"></i><span>Dashboard</span></a>
+            <a href="#" data-section="dashboard" class="nav-link flex items-center space-x-3 p-3 rounded-lg bg-blue-600 text-white font-medium"><i class="fas fa-chart-line w-5 text-center"></i><span>Dashboard & CMV</span></a>
             
             <div class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-6 px-3">Cozinha (Automático)</div>
             <a href="#" data-section="estoque-auto" class="nav-link flex items-center space-x-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white font-medium"><i class="fas fa-boxes w-5 text-center"></i><span>Estoque Cozinha</span></a>
             <a href="#" data-section="fichas" class="nav-link flex items-center space-x-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white font-medium"><i class="fas fa-file-invoice w-5 text-center"></i><span>Fichas Técnicas</span></a>
             <a href="#" data-section="saidas" class="nav-link flex items-center space-x-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white font-medium"><i class="fas fa-concierge-bell w-5 text-center"></i><span>Vendas & Saídas PDV</span></a>
             
-            <div class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-6 px-3">Almoxarifado (Manual)</div>
-            <a href="#" data-section="estoque-manual" class="nav-link flex items-center space-x-3 p-3 rounded-lg text-amber-400 hover:bg-amber-400/10 font-bold border border-transparent hover:border-amber-400/20"><i class="fas fa-hand-holding-box w-5 text-center"></i><span>Estoque Almoxarifado</span></a>
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-6 px-3">Almoxarifado (Auditoria)</div>
+            <a href="#" data-section="estoque-manual" class="nav-link flex items-center space-x-3 p-3 rounded-lg text-amber-400 hover:bg-amber-400/10 font-bold border border-transparent hover:border-amber-400/20"><i class="fas fa-hand-holding-box w-5 text-center"></i><span>Estoque Seco / Balanço</span></a>
             
             <div class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-6 px-3">Entradas & Base</div>
             <a href="#" data-section="inventario" class="nav-link flex items-center space-x-3 p-3 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white font-medium"><i class="fas fa-clipboard-list w-5 text-center"></i><span>Inventário Inicial</span></a>
@@ -98,28 +102,64 @@
 
     <div id="mobileOverlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
 
+    <!-- MAIN AREA -->
     <main class="flex-1 p-4 md:p-6 overflow-y-auto h-full" id="mainArea">
 
+        <!-- 1. DASHBOARD CORRIGIDO (COM CMV ESTÁTICO E BLINDADO) -->
         <section id="dashboard" class="section-content active space-y-4 md:space-y-6">
             <div class="flex flex-col md:flex-row justify-between md:items-end gap-2">
-                <h2 class="text-2xl md:text-3xl font-bold text-white">Visão Geral</h2>
+                <h2 class="text-2xl md:text-3xl font-bold text-white">Visão Geral & Financeiro</h2>
                 <select id="dashPeriod" onchange="loadDashboard()" class="input-dark rounded-lg px-4 py-2 text-sm font-semibold text-blue-400 w-full md:w-auto">
-                    <option value="3d">Últimos 3 dias</option><option value="7d">Últimos 7 dias</option><option value="15d">Últimos 15 dias</option><option value="30d" selected>Últimos 30 dias</option>
-                    <option value="45d">Últimos 45 dias</option><option value="60d">Últimos 60 dias</option><option value="current_month">Mês Atual</option><option value="prev_month">Mês Anterior</option>
+                    <option value="3d">Últimos 3 dias</option>
+                    <option value="7d">Últimos 7 dias</option>
+                    <option value="15d">Últimos 15 dias</option>
+                    <option value="30d" selected>Últimos 30 dias</option>
+                    <option value="45d">Últimos 45 dias</option>
+                    <option value="60d">Últimos 60 dias</option>
+                    <option value="current_month">Mês Atual</option>
+                    <option value="prev_month">Mês Anterior</option>
                 </select>
             </div>
+            
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                <div class="glass-panel p-4 rounded-xl border-l-4 border-l-emerald-500"><div class="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-1 truncate">R$ Compras</div><div class="text-lg md:text-2xl font-bold text-emerald-400 truncate" id="dash-compras">R$ 0</div></div>
-                <div class="glass-panel p-4 rounded-xl border-l-4 border-l-amber-500"><div class="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-1 truncate">Consumo (kg)</div><div class="text-lg md:text-2xl font-bold text-amber-500 truncate"><span id="dash-kg">0</span></div></div>
-                <div class="glass-panel p-4 rounded-xl border-l-4 border-l-blue-500"><div class="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-1 truncate">Pratos Feitos</div><div class="text-lg md:text-2xl font-bold text-blue-400 truncate" id="dash-portions">0</div></div>
-                <div class="glass-panel p-4 rounded-xl border-l-4 border-l-indigo-500"><div class="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-1 truncate">Fichas</div><div class="text-lg md:text-2xl font-bold text-white truncate" id="dash-recipes">0</div></div>
+                <!-- FATURAMENTO -->
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-l-blue-500">
+                    <div class="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-1 truncate">Faturamento PDV</div>
+                    <div class="text-lg md:text-2xl font-bold text-blue-400 truncate" id="dash-faturamento">R$ 0,00</div>
+                </div>
+                
+                <!-- COMPRAS -->
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-l-slate-500">
+                    <div class="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-1 truncate">Total Compras</div>
+                    <div class="text-lg md:text-2xl font-bold text-slate-300 truncate" id="dash-compras">R$ 0,00</div>
+                </div>
+                
+                <!-- CMV -->
+                <div id="cmv-card" class="glass-panel p-4 rounded-xl border-l-4 border-l-slate-500">
+                    <div class="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-1 truncate">CMV Calculado</div>
+                    <div class="text-lg md:text-2xl font-bold text-slate-400 truncate" id="dash-cmv">0,00%</div>
+                </div>
+                
+                <!-- PRATOS VENDIDOS -->
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-l-indigo-500">
+                    <div class="text-slate-400 text-[9px] font-bold uppercase tracking-wider mb-1 truncate">Pratos Vendidos</div>
+                    <div class="text-lg md:text-2xl font-bold text-white truncate" id="dash-portions">0</div>
+                </div>
             </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-                <div class="lg:col-span-2 glass-panel p-4 md:p-6 rounded-xl"><h3 class="text-sm md:text-lg font-bold mb-4 text-slate-200">Top 10 Ingredientes Mais Consumidos</h3><div class="relative h-48 md:h-64 w-full"><canvas id="dashChart"></canvas></div></div>
-                <div class="glass-panel p-4 md:p-6 rounded-xl overflow-hidden flex flex-col"><h3 class="text-sm md:text-lg font-bold mb-4 text-slate-200">Últimos Lotes</h3><div id="dash-recent-list" class="space-y-2 overflow-y-auto flex-1 custom-scrollbar"></div></div>
+                <div class="lg:col-span-2 glass-panel p-4 md:p-6 rounded-xl">
+                    <h3 class="text-sm md:text-lg font-bold mb-4 text-slate-200">Top 10 Ingredientes Mais Consumidos</h3>
+                    <div class="relative h-48 md:h-64 w-full"><canvas id="dashChart"></canvas></div>
+                </div>
+                <div class="glass-panel p-4 md:p-6 rounded-xl overflow-hidden flex flex-col">
+                    <h3 class="text-sm md:text-lg font-bold mb-4 text-slate-200">Últimos Lotes Lançados</h3>
+                    <div id="dash-recent-list" class="space-y-2 overflow-y-auto flex-1 custom-scrollbar"></div>
+                </div>
             </div>
         </section>
 
+        <!-- 2. ESTOQUE AUTOMÁTICO (COZINHA) -->
         <section id="estoque-auto" class="section-content space-y-4 md:space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                 <div>
@@ -145,11 +185,12 @@
             </div>
         </section>
 
+        <!-- 3. ESTOQUE MANUAL (ALMOXARIFADO / SECO COM AUDITORIA) -->
         <section id="estoque-manual" class="section-content space-y-4 md:space-y-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-2">
                 <div>
                     <h2 class="text-2xl md:text-3xl font-bold text-amber-500">Almoxarifado & Estoque Seco</h2>
-                    <p class="text-slate-400 text-sm mt-1">Controle livre (manual) de produtos que não vão na ficha técnica.</p>
+                    <p class="text-slate-400 text-sm mt-1">Importação em massa para balanço rápido.</p>
                 </div>
                 <div class="relative w-full md:w-64">
                     <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
@@ -160,7 +201,7 @@
             <div class="glass-panel p-4 rounded-xl border-t-4 border-t-amber-500">
                 <form id="formAddManual" class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end" onsubmit="event.preventDefault(); addEstoqueManual();">
                     <div class="md:col-span-2">
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Novo Produto</label>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cadastrar Manualmente</label>
                         <input type="text" id="manualAddNome" class="input-dark w-full rounded px-3 py-2 text-sm" placeholder="Ex: Arroz Tipo 1" required>
                     </div>
                     <div>
@@ -179,14 +220,20 @@
                     </div>
                 </form>
 
-                <div class="mt-4 pt-4 border-t border-slate-700 flex flex-col md:flex-row items-start md:items-center gap-3">
+                <div class="mt-4 pt-4 border-t border-slate-700 flex flex-col gap-3">
                     <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center">
-                        <i class="fas fa-file-csv text-amber-500 mr-2 text-lg"></i> Importar em Massa (CSV):
+                        <i class="fas fa-file-csv text-amber-500 mr-2 text-lg"></i> Importações em Massa (Arquivo CSV):
                     </div>
-                    <div class="flex items-center gap-2 w-full md:w-auto">
+                    
+                    <div class="flex flex-wrap items-center gap-2">
                         <input type="file" id="manualCsvFile" class="hidden" accept=".csv">
-                        <label for="manualCsvFile" id="manualCsvLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition-colors truncate max-w-[150px] text-center w-full md:w-auto">Escolher Arquivo</label>
-                        <button onclick="uploadEstoqueManualCsv()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-1.5 rounded text-xs font-bold transition-colors w-full md:w-auto text-center shadow-lg shadow-amber-600/20">Subir Estoque Seco</button>
+                        <label for="manualCsvFile" id="manualCsvLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-xs font-semibold transition-colors truncate max-w-[150px] text-center shadow-md">1. Escolher Arquivo</label>
+                        
+                        <button onclick="uploadEstoqueManualCsv('entrada')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded text-xs font-bold transition-colors shadow-lg shadow-emerald-600/20 flex items-center"><i class="fas fa-plus-circle mr-2"></i> Somar Entradas</button>
+                        
+                        <button onclick="uploadEstoqueManualCsv('saida')" class="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded text-xs font-bold transition-colors shadow-lg shadow-red-600/20 flex items-center"><i class="fas fa-minus-circle mr-2"></i> Subtrair Saídas</button>
+
+                        <button onclick="uploadEstoqueManualCsv('balanco')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded text-xs font-bold transition-colors shadow-lg shadow-blue-600/20 flex items-center"><i class="fas fa-equals mr-2"></i> Substituir (Balanço)</button>
                     </div>
                 </div>
             </div>
@@ -195,7 +242,13 @@
                 <div class="overflow-x-auto max-h-[50vh] custom-scrollbar">
                     <table class="w-full text-left table-slim whitespace-nowrap">
                         <thead class="bg-slate-800 sticky top-0 text-slate-400 z-10 shadow-md">
-                            <tr><th class="font-semibold uppercase pl-4">Produto</th><th class="font-semibold uppercase">Categoria</th><th class="font-semibold text-center uppercase">Controle de Quantidade</th><th class="font-semibold text-center uppercase">Excluir</th></tr>
+                            <tr>
+                                <th class="font-semibold uppercase pl-4">Produto</th>
+                                <th class="font-semibold text-center uppercase">Qtd Atual</th>
+                                <th class="font-semibold text-center uppercase text-amber-400">Diferença Auditoria</th>
+                                <th class="font-semibold uppercase">Justificativa</th>
+                                <th class="font-semibold text-center uppercase pr-4">Excluir</th>
+                            </tr>
                         </thead>
                         <tbody id="estoqueManualBody" class="divide-y divide-slate-800/50 bg-slate-900/50"></tbody>
                     </table>
@@ -203,6 +256,7 @@
             </div>
         </section>
 
+        <!-- 4. VENDAS (PDV) -->
         <section id="saidas" class="section-content space-y-4 md:space-y-6">
             <div class="flex flex-col md:flex-row justify-between md:items-end gap-2">
                 <h2 class="text-2xl md:text-3xl font-bold text-white">Vendas (PDV)</h2>
@@ -214,17 +268,19 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4" id="weeksList"></div>
         </section>
 
+        <!-- 5. COMPRAS -->
         <section id="compras" class="section-content space-y-4 md:space-y-6">
             <div class="flex flex-col md:flex-row justify-between md:items-end gap-2">
                 <h2 class="text-2xl md:text-3xl font-bold text-white">Compras (Entradas)</h2>
                 <div class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700 w-full md:w-auto">
-                    <input type="file" id="compFiles" multiple class="hidden" accept=".pdf,.xml"><label for="compFiles" id="compFilesLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-semibold w-full md:w-auto text-center transition">Anexar NFs (PDF+XML)</label>
+                    <input type="file" id="compFiles" multiple class="hidden" accept=".pdf,.xml"><label for="compFiles" id="compFilesLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-semibold w-full md:w-auto text-center transition">Anexar NFs</label>
                     <button onclick="uploadCompras()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded text-xs font-bold transition">Lançar</button>
                 </div>
             </div>
             <div id="comprasContainer" class="space-y-3"></div>
         </section>
 
+        <!-- 6. INVENTÁRIO -->
         <section id="inventario" class="section-content space-y-4 md:space-y-6">
             <div class="flex flex-col md:flex-row justify-between md:items-end gap-2">
                 <h2 class="text-2xl md:text-3xl font-bold text-white">Contagem Base</h2>
@@ -241,17 +297,19 @@
             </div>
         </section>
 
+        <!-- 7. FICHAS TÉCNICAS -->
         <section id="fichas" class="section-content space-y-4 md:space-y-6">
             <div class="flex flex-col md:flex-row justify-between md:items-end gap-2">
                 <h2 class="text-2xl md:text-3xl font-bold text-white">Fichas Técnicas</h2>
                 <div class="flex items-center gap-2 bg-slate-800 p-2 rounded-lg border border-slate-700 w-full md:w-auto">
-                    <input type="file" id="recipeFile" class="hidden" accept=".csv"><label for="recipeFile" id="recipeFileLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-semibold w-full text-center transition">Upload Tabela Completa</label>
+                    <input type="file" id="recipeFile" class="hidden" accept=".csv"><label for="recipeFile" id="recipeFileLabel" class="cursor-pointer bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-semibold w-full text-center transition">Upload Tabela</label>
                     <button onclick="uploadRecipes()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-xs font-bold transition">Substituir</button>
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4" id="recipesList"></div>
         </section>
 
+        <!-- 8. RELATÓRIOS -->
         <section id="relatorios" class="section-content space-y-4 md:space-y-6">
             <h2 class="text-2xl md:text-3xl font-bold text-white">Relatórios Específicos</h2>
             <div class="glass-panel p-4 md:p-6 rounded-xl flex flex-col md:flex-row gap-3 md:items-end border-t-2 border-t-blue-500">
@@ -271,8 +329,17 @@
             </div>
         </section>
 
+        <!-- 9. LOGS -->
+        <section id="logs" class="section-content space-y-4 md:space-y-6">
+            <h2 class="text-2xl md:text-3xl font-bold text-white">Logs</h2>
+            <div class="glass-panel rounded-xl overflow-hidden">
+                <div class="overflow-x-auto max-h-[700px] custom-scrollbar"><table class="w-full text-left text-sm"><thead class="bg-slate-900 sticky top-0 border-b border-slate-700 text-slate-400 z-10"><tr><th class="px-6 py-4">Data/Hora</th><th class="px-6 py-4">Operação</th><th class="px-6 py-4">Arquivo</th><th class="px-6 py-4">Resultado</th><th class="px-6 py-4">Limpar</th></tr></thead><tbody id="logsBody" class="divide-y divide-slate-800"></tbody></table></div>
+            </div>
+        </section>
+
     </main>
 
+    <!-- JS LOGIC - CORRIGIDO O DASHBOARD PARA NÃO DESTRUIR O GRÁFICO -->
     <script>
         let supabaseClient;
         window.recipesMap = new Map();
@@ -281,7 +348,7 @@
         let fullInvTableData = [];
         let dashChart = null;
 
-        // --- SISTEMA E UI BASE ---
+        // --- UI BASE ---
         function toggleMobileMenu() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('mobileOverlay');
@@ -328,7 +395,6 @@
             setInterval(loadEstoqueReal, 120000); 
         }
 
-        // Navegação
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -350,10 +416,10 @@
                 if(target==='compras') handle(loadCompras);
                 if(target==='inventario') handle(loadInventario);
                 if(target==='saidas') handle(loadWeeks);
+                if(target==='logs') handle(loadLogs);
             });
         });
 
-        // Formatações
         function formatMoney(value) { return Number(value).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'}); }
         function formatDate(dStr) { if(!dStr) return '--'; return new Date(dStr+(dStr.includes('T')?'':'T12:00:00')).toLocaleDateString('pt-BR'); }
         function getYYYYMMDD(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -368,7 +434,7 @@
             return '🛒 Outros Insumos';
         }
 
-        // --- DASHBOARD ---
+        // --- DASHBOARD: CÁLCULO E INJEÇÃO SEGURA ---
         async function loadDashboard() {
             try {
                 const period = document.getElementById('dashPeriod').value;
@@ -378,25 +444,69 @@
                 else if (period === 'prev_month') { start = new Date(today.getFullYear(), today.getMonth() - 1, 1); end = new Date(today.getFullYear(), today.getMonth(), 0); }
                 const startStr = getYYYYMMDD(start); const endStr = getYYYYMMDD(end);
 
-                const [cRes, wRes, rRes, fRes] = await Promise.all([ fetchAuth('/api/compras').catch(()=>null), fetchAuth('/api/weeks').catch(()=>null), fetchAuth(`/api/reports?start=${startStr}&end=${endStr}`).catch(()=>null), fetchAuth('/api/recipes/list').catch(()=>null) ]);
-                const compras = cRes?.ok ? await cRes.json() : []; const weeks = wRes?.ok ? await wRes.json() : []; const reports = rRes?.ok ? await rRes.json() : { records: [] }; const fichas = fRes?.ok ? await fRes.json() : [];
+                const [cRes, wRes, rRes, fRes] = await Promise.all([ 
+                    fetchAuth('/api/compras').catch(()=>null), 
+                    fetchAuth('/api/weeks').catch(()=>null), 
+                    fetchAuth(`/api/reports?start=${startStr}&end=${endStr}`).catch(()=>null), 
+                    fetchAuth('/api/recipes/list').catch(()=>null) 
+                ]);
+                
+                const compras = cRes?.ok ? await cRes.json() : []; 
+                const weeks = wRes?.ok ? await wRes.json() : []; 
+                const reports = rRes?.ok ? await rRes.json() : { records: [] };
 
                 const validC = compras.filter(c => c.data_compra >= startStr && c.data_compra <= endStr);
-                const validW = weeks.filter(w => w.week_code >= startStr && w.week_code <= endStr);
+                const validW = weeks.filter(w => {
+                    return w.week_code >= startStr && w.week_code <= endStr && !w.week_code.includes('MANUAL');
+                });
 
-                document.getElementById('dash-compras').innerText = formatMoney(validC.reduce((s, c) => s + Number(c.valor_total||0), 0));
-                document.getElementById('dash-kg').innerText = validW.reduce((s, w) => s + Number(w.total_kg||0), 0).toFixed(1);
-                document.getElementById('dash-portions').innerText = validW.reduce((s, w) => s + Number(w.total_portions||0), 0);
-                document.getElementById('dash-recipes').innerText = new Set(fichas.map(f => f.dish)).size;
+                // CÁLCULOS MATEMÁTICOS
+                const totalComprasCMV = validC.reduce((s, c) => s + Number(c.valor_total||0), 0);
+                const totalVendasCMV = validW.reduce((s, w) => s + Number(w.valor_total||0), 0); 
+                const totalPortions = validW.reduce((s, w) => s + Number(w.total_portions||0), 0);
+                
+                let cmvPercent = 0;
+                if (totalVendasCMV > 0) cmvPercent = (totalComprasCMV / totalVendasCMV) * 100;
 
+                // INJEÇÃO SEGURA NO HTML (Sem quebrar a grid)
+                document.getElementById('dash-faturamento').innerText = formatMoney(totalVendasCMV);
+                document.getElementById('dash-compras').innerText = formatMoney(totalComprasCMV);
+                document.getElementById('dash-portions').innerText = totalPortions;
+                
+                const cmvCard = document.getElementById('cmv-card');
+                const dashCmv = document.getElementById('dash-cmv');
+                dashCmv.innerText = cmvPercent.toFixed(2) + '%';
+                
+                // Limpa as classes de cor e aplica a correta baseada no CMV
+                cmvCard.className = 'glass-panel p-4 rounded-xl border-l-4';
+                dashCmv.className = 'text-lg md:text-2xl font-bold truncate';
+                
+                if(cmvPercent === 0) { 
+                    cmvCard.classList.add('border-l-slate-500'); 
+                    dashCmv.classList.add('text-slate-400'); 
+                } else if(cmvPercent <= 30) { 
+                    cmvCard.classList.add('border-l-emerald-500'); 
+                    dashCmv.classList.add('text-emerald-400'); 
+                } else if(cmvPercent <= 40) { 
+                    cmvCard.classList.add('border-l-amber-500'); 
+                    dashCmv.classList.add('text-amber-400'); 
+                } else { 
+                    cmvCard.classList.add('border-l-red-500'); 
+                    dashCmv.classList.add('text-red-400'); 
+                }
+
+                // Últimos Lotes
                 const recent = [...validW].sort((a,b) => b.week_code.localeCompare(a.week_code)).slice(0, 6);
                 document.getElementById('dash-recent-list').innerHTML = recent.map(w => `<div class="p-2 md:p-3 bg-slate-800 rounded-lg flex justify-between items-center border border-slate-700 text-xs md:text-sm"><div><span class="font-bold text-white"><i class="fas fa-tag text-blue-500 mr-2"></i>${w.week_code.substring(0,16)}</span></div><div class="font-black text-amber-400">-${Number(w.total_kg).toFixed(1)}kg</div></div>`).join('');
 
+                // Gráfico
                 const top10 = (reports.records || []).sort((a,b) => b.kg - a.kg).slice(0, 10);
                 const ctx = document.getElementById('dashChart').getContext('2d');
                 if (dashChart) dashChart.destroy();
                 dashChart = new Chart(ctx, { type: 'bar', data: { labels: top10.map(i => i.ingredient.substring(0, 12)), datasets: [{ data: top10.map(i => i.kg), backgroundColor: '#3b82f6', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#334155' } }, x: { grid: { display: false }, ticks: { font: {size: 9} } } } } });
-            } catch(e) {}
+            } catch(e) {
+                console.error("Falha ao carregar os dados do Dashboard:", e);
+            }
         }
 
         // --- ESTOQUE AUTOMÁTICO (COZINHA) ---
@@ -435,7 +545,7 @@
             document.getElementById('estoqueMobileContainer').innerHTML = mobileHtml || '<div class="p-4 text-center text-slate-500">Nenhum item encontrado.</div>';
         }
 
-        // --- ESTOQUE MANUAL (ALMOXARIFADO / SECO) ---
+        // --- ESTOQUE MANUAL (ALMOXARIFADO / SECO COM AUDITORIA) ---
         async function loadEstoqueManual() {
             try {
                 estoqueManualData = await (await fetchAuth('/api/estoque-manual')).json();
@@ -454,19 +564,6 @@
             } catch(e) { alert("Erro ao salvar."); }
         }
 
-        async function updateEstoqueManual(id, currentQtd, operation) {
-            let newQtd = operation === '+' ? currentQtd + 1 : currentQtd - 1;
-            if (operation === 'prompt') {
-                const val = prompt("Digite o novo saldo atual deste produto:");
-                if(val === null || val.trim() === '') return;
-                newQtd = parseFloat(val); if(isNaN(newQtd)) return alert("Valor inválido.");
-            }
-            try {
-                await fetchAuth(`/api/estoque-manual/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ quantidade: newQtd }) });
-                loadEstoqueManual();
-            } catch(e) { alert("Erro ao atualizar."); }
-        }
-
         async function deleteEstoqueManual(id) {
             if(!confirm("Excluir este item definitivamente do almoxarifado?")) return;
             await fetchAuth(`/api/estoque-manual/${id}`, { method: 'DELETE' }); loadEstoqueManual();
@@ -475,40 +572,92 @@
         function filterEstoqueManual() {
             const term = document.getElementById('searchManual').value.toLowerCase();
             const filtered = estoqueManualData.filter(i => i.produto.toLowerCase().includes(term) || i.categoria.toLowerCase().includes(term));
-            document.getElementById('estoqueManualBody').innerHTML = filtered.map(i => `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30"><td class="px-4 py-2 font-bold text-white text-[13px]">${i.produto}</td><td class="px-4 py-2 text-slate-400 text-xs">${i.categoria}</td><td class="px-4 py-2 text-center"><div class="flex items-center justify-center space-x-3 bg-slate-900 rounded p-1 w-fit mx-auto border border-slate-700"><button onclick="updateEstoqueManual('${i.id}', ${i.quantidade}, '-')" class="text-slate-400 hover:text-red-400 px-2 py-1"><i class="fas fa-minus"></i></button><span class="font-black text-amber-500 text-lg w-16 text-center cursor-pointer hover:bg-slate-800 rounded" onclick="updateEstoqueManual('${i.id}', ${i.quantidade}, 'prompt')" title="Clique para editar">${i.quantidade}</span><button onclick="updateEstoqueManual('${i.id}', ${i.quantidade}, '+')" class="text-slate-400 hover:text-emerald-400 px-2 py-1"><i class="fas fa-plus"></i></button></div></td><td class="px-4 py-2 text-center"><button onclick="deleteEstoqueManual('${i.id}')" class="text-slate-600 hover:text-red-500"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+            
+            document.getElementById('estoqueManualBody').innerHTML = filtered.map(i => {
+                const qtdNum = parseFloat(i.quantidade || 0);
+                const diffNum = parseFloat(i.diferenca || 0);
+                
+                const qtdFormatada = parseFloat(qtdNum.toFixed(2));
+                const diffFormatada = parseFloat(diffNum.toFixed(2));
+                
+                const diffClass = diffFormatada < 0 ? 'text-red-400' : (diffFormatada > 0 ? 'text-emerald-400' : 'text-slate-500');
+                const diffText = diffFormatada > 0 ? `+${diffFormatada}` : diffFormatada;
+                
+                let justifHtml = '';
+                if (diffFormatada !== 0 && !i.justificativa) {
+                    justifHtml = `<button onclick="openJustificativaModal('${i.id}', '${i.produto.replace(/'/g, "\\'")}', ${diffFormatada})" class="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded text-[10px] font-bold uppercase hover:bg-red-500 hover:text-white transition shadow-lg shadow-red-500/20 animate-pulse">Justificar!</button>`;
+                } else if (i.justificativa) {
+                    justifHtml = `<div class="text-[10px] text-slate-400 truncate max-w-[200px] italic cursor-pointer hover:text-slate-200" title="Clique para editar: ${i.justificativa}" onclick="openJustificativaModal('${i.id}', '${i.produto.replace(/'/g, "\\'")}', ${diffFormatada}, '${i.justificativa.replace(/'/g, "\\'")}')"><i class="fas fa-comment-dots text-slate-500 mr-1"></i>${i.justificativa}</div>`;
+                } else {
+                    justifHtml = `<span class="text-slate-600 text-[10px] italic">S/ alteração</span>`;
+                }
+
+                return `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+                            <td class="px-4 py-3 font-bold text-white text-[12px]">${i.produto}</td>
+                            <td class="px-4 py-3 text-center font-black text-blue-400 text-base">${qtdFormatada}</td>
+                            <td class="px-4 py-3 text-center font-bold ${diffClass} text-sm">${diffFormatada !== 0 ? diffText : '-'}</td>
+                            <td class="px-4 py-3">${justifHtml}</td>
+                            <td class="px-4 py-3 text-center pr-4"><button onclick="deleteEstoqueManual('${i.id}')" class="text-slate-600 hover:text-red-500"><i class="fas fa-trash"></i></button></td>
+                        </tr>`;
+            }).join('');
         }
 
-        // --- UPLOAD CSV PARA ESTOQUE MANUAL (CORRIGIDO) ---
-        async function uploadEstoqueManualCsv() {
+        function openJustificativaModal(id, produto, diferenca, currentText = '') {
+            const corTexto = diferenca < 0 ? 'text-red-400' : 'text-emerald-400';
+            const sinal = diferenca > 0 ? '+' : '';
+            document.getElementById('modalTitle').innerText = `Auditoria: ${produto}`;
+            document.getElementById('modalBody').innerHTML = `<div class="space-y-4"><div class="bg-slate-800 p-4 rounded-lg border border-slate-700 text-sm text-slate-300">Diferença/Movimentação pendente: <strong class="text-lg ${corTexto}">${sinal}${diferenca} kg/und</strong>.</div><div><label class="block text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">Motivo / Justificativa:</label><textarea id="justifText" rows="3" class="input-dark w-full rounded-lg px-3 py-2 text-sm" placeholder="Ex: Utilizado na refeição de funcionários, ou Erro de contagem, etc...">${currentText}</textarea></div><button onclick="saveJustificativa('${id}')" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold mt-2 transition shadow-lg shadow-blue-500/20">Salvar Justificativa</button></div>`;
+            document.getElementById('sysModal').classList.remove('hidden');
+        }
+
+        async function saveJustificativa(id) {
+            const texto = document.getElementById('justifText').value.trim();
+            if (!texto) return alert("Por favor, digite a justificativa.");
+            try { await fetchAuth(`/api/estoque-manual/justificativa/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ justificativa: texto }) }); closeModal(); loadEstoqueManual(); } 
+            catch(e) { alert("Erro ao salvar justificativa."); }
+        }
+
+        // --- UPLOAD MÚLTIPLO DO ESTOQUE MANUAL ---
+        handleFileLabel('manualCsvFile', 'manualCsvLabel', '1. Escolher Arquivo');
+        
+        async function uploadEstoqueManualCsv(tipo) {
             const file = document.getElementById('manualCsvFile').files[0];
-            if(!file) return alert("Selecione o arquivo CSV.");
+            if(!file) return alert("Selecione o arquivo CSV primeiro no botão cinza (Passo 1).");
             
-            const fd = new FormData(); 
-            fd.append('file', file);
+            const fd = new FormData(); fd.append('file', file);
             
-            const btn = document.querySelector('button[onclick="uploadEstoqueManualCsv()"]');
-            const originalText = btn.innerText;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subindo...';
+            const buttons = document.querySelectorAll('#estoque-manual button');
+            let originalText = ""; let clickedBtn = null;
+            buttons.forEach(b => { if(b.getAttribute('onclick') && b.getAttribute('onclick').includes(tipo)) { clickedBtn = b; originalText = b.innerHTML; b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...'; }});
             
             try {
-                const res = await fetchAuth('/api/estoque-manual/upload', { method: 'POST', body: fd });
+                const res = await fetchAuth(`/api/estoque-manual/upload?tipo=${tipo}`, { method: 'POST', body: fd });
                 const data = await res.json();
                 if(data.error) throw new Error(data.error);
                 
-                alert(data.message || "Upload concluído!");
+                alert(data.message || "Operação concluída!");
                 document.getElementById('manualCsvFile').value = '';
-                document.getElementById('manualCsvLabel').innerText = 'Escolher Arquivo';
+                document.getElementById('manualCsvLabel').innerText = '1. Escolher Arquivo';
                 loadEstoqueManual();
-            } catch(e) {
-                alert("Erro ao subir CSV: " + e.message);
-            }
-            btn.innerHTML = originalText;
+            } catch(e) { alert("Erro: " + e.message); }
+            
+            if(clickedBtn) clickedBtn.innerHTML = originalText;
         }
 
-        // --- VENDAS & COMPRAS & INVENTÁRIO ---
+        // --- COMPRAS, VENDAS, INVENTÁRIO BASE E UTILITÁRIOS GERAIS ---
+        function handleFileLabel(iId, lId, dT) { document.getElementById(iId).addEventListener('change', (e) => { const c = e.target.files.length; document.getElementById(lId).innerText = c > 1 ? `${c} arquivos` : (c === 1 ? e.target.files[0].name.substring(0,15)+"..." : dT); }); }
+        handleFileLabel('recipeFile', 'recipeFileLabel', 'Upload Tabela');
+        handleFileLabel('compFiles', 'compFilesLabel', 'Anexar NFs');
+        handleFileLabel('invFiles', 'invFilesLabel', 'CSV\'s');
+        handleFileLabel('weekFile', 'weekFileLabel', 'CSV PDV');
+
         async function loadWeeks() {
             const data = await (await fetchAuth('/api/weeks')).json();
-            document.getElementById('weeksList').innerHTML = data.map(w => `<div class="glass-panel rounded-xl overflow-hidden border border-slate-700 h-fit shadow-md"><div class="p-3 md:p-4 bg-slate-800 cursor-pointer hover:bg-slate-700 transition" onclick="toggleElement('detail-${w.week_code}', 'icon-week-${w.week_code}', true, '${w.week_code}')"><div class="flex justify-between items-start mb-3"><span class="bg-${w.week_code.includes('MANUAL')?'amber':'blue'}-600 px-2 py-1 rounded text-white text-[10px] font-bold uppercase tracking-widest flex items-center"><i class="fas fa-${w.week_code.includes('MANUAL')?'hand-holding-box':'tag'} mr-1"></i>${w.week_code.substring(0,16)}</span><div class="flex items-center space-x-3"><button onclick="event.stopPropagation(); deleteWeek('${w.week_code}')" class="text-slate-400 hover:text-white bg-red-500/10 hover:bg-red-500 p-1.5 rounded transition" title="Excluir este dia"><i class="fas fa-times text-xs"></i></button><i class="fas fa-chevron-down text-slate-400 transition-transform" id="icon-week-${w.week_code}"></i></div></div><div class="flex justify-between items-end"><div><div class="text-[9px] text-slate-500 uppercase font-bold">Lançamentos</div><div class="font-black text-white text-base md:text-lg">${w.total_portions}</div></div><div class="text-right"><div class="text-[9px] text-slate-500 uppercase font-bold">Desconto Estoque</div><div class="font-black text-red-400 text-base md:text-lg">-${w.total_kg} kg</div></div></div></div><div id="detail-${w.week_code}" class="hidden bg-slate-900 border-t border-slate-700 p-2 max-h-60 overflow-y-auto custom-scrollbar text-xs text-center text-slate-500 loading-text"><i class="fas fa-spinner fa-spin"></i></div></div>`).join('');
+            document.getElementById('weeksList').innerHTML = data.map(w => {
+                const valorExibido = w.valor_total ? `<div class="text-[9px] text-slate-500 uppercase font-bold">Faturamento</div><div class="font-black text-emerald-400 text-base md:text-lg">${formatMoney(w.valor_total)}</div>` : `<div class="text-[9px] text-slate-500 uppercase font-bold">Lançamentos</div><div class="font-black text-white text-base md:text-lg">${w.total_portions}</div>`;
+                
+                return `<div class="glass-panel rounded-xl overflow-hidden border border-slate-700 h-fit shadow-md"><div class="p-3 md:p-4 bg-slate-800 cursor-pointer hover:bg-slate-700 transition" onclick="toggleElement('detail-${w.week_code}', 'icon-week-${w.week_code}', true, '${w.week_code}')"><div class="flex justify-between items-start mb-3"><span class="bg-${w.week_code.includes('MANUAL')?'amber':'blue'}-600 px-2 py-1 rounded text-white text-[10px] font-bold uppercase tracking-widest flex items-center"><i class="fas fa-${w.week_code.includes('MANUAL')?'hand-holding-box':'tag'} mr-1"></i>${w.week_code.substring(0,16)}</span><div class="flex items-center space-x-3"><button onclick="event.stopPropagation(); deleteWeek('${w.week_code}')" class="text-slate-400 hover:text-white bg-red-500/10 hover:bg-red-500 p-1.5 rounded transition" title="Excluir este dia"><i class="fas fa-times text-xs"></i></button><i class="fas fa-chevron-down text-slate-400 transition-transform" id="icon-week-${w.week_code}"></i></div></div><div class="flex justify-between items-end"><div>${valorExibido}</div><div class="text-right"><div class="text-[9px] text-slate-500 uppercase font-bold">Desconto Estoque</div><div class="font-black text-red-400 text-base md:text-lg">-${w.total_kg} kg</div></div></div></div><div id="detail-${w.week_code}" class="hidden bg-slate-900 border-t border-slate-700 p-2 max-h-60 overflow-y-auto custom-scrollbar text-xs text-center text-slate-500 loading-text"><i class="fas fa-spinner fa-spin"></i></div></div>`
+            }).join('');
         }
         async function loadCompras() {
             const data = await (await fetchAuth('/api/compras')).json(); const grouped = {};
@@ -525,21 +674,50 @@
         }
         
         async function toggleElement(divId, iconId, fetchD = false, code = '') {
-            const div = document.getElementById(divId); const icon = document.getElementById(iconId);
-            div.classList.toggle('hidden'); icon.style.transform = div.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
-            if(fetchD && !div.classList.contains('hidden') && div.innerHTML.includes('loading-text')) {
-                try { const d = await (await fetchAuth(`/api/weeks/${code}`)).json(); div.innerHTML = `<table class="w-full text-left text-[10px]"><tbody>` + d.records.map(r => `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30"><td class="py-2 px-2 text-slate-300">${r.ingredient}</td><td class="py-2 px-2 text-right font-bold text-red-400">-${r.kg}</td></tr>`).join('') + `</tbody></table>`; } catch(e) { div.innerHTML = `<div class="p-2 text-red-400">Erro ao carregar detalhes.</div>`; }
+            const div = document.getElementById(divId); 
+            const icon = document.getElementById(iconId);
+            div.classList.toggle('hidden'); 
+            icon.style.transform = div.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+            
+            // Verifica se o ícone do spinner está rodando dentro da div
+            if(fetchD && !div.classList.contains('hidden') && div.innerHTML.includes('fa-spinner')) {
+                try { 
+                    const res = await fetchAuth(`/api/weeks/${code}`);
+                    if (!res.ok) throw new Error();
+                    const d = await res.json(); 
+                    
+                    let html = '';
+                    
+                    // 1. Mostrar os Pratos Vendidos
+                    if (d.week && d.week.pratos_vendidos && typeof d.week.pratos_vendidos === 'object') {
+                        const pratosList = Object.entries(d.week.pratos_vendidos);
+                        if (pratosList.length > 0) {
+                            html += `<div class="bg-slate-800 p-2 text-left border-b border-slate-700 text-[10px] font-bold text-blue-400 uppercase tracking-widest"><i class="fas fa-utensils mr-1"></i> Pratos Lidos no CSV</div>`;
+                            html += `<table class="w-full text-left text-[10px] mb-2"><tbody>`;
+                            for (const [prato, qtd] of pratosList) {
+                                html += `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30"><td class="py-2 px-3 text-white font-medium">${prato}</td><td class="py-2 px-3 text-right font-black text-blue-400">${qtd}x</td></tr>`;
+                            }
+                            html += `</tbody></table>`;
+                        }
+                    }
+
+                    // 2. Mostrar os Ingredientes Abatidos
+                    html += `<div class="bg-slate-800 p-2 text-left border-b border-slate-700 text-[10px] font-bold text-amber-500 uppercase tracking-widest mt-2"><i class="fas fa-box-open mr-1"></i> Ingredientes Abatidos do Estoque</div>`;
+                    html += `<table class="w-full text-left text-[10px]"><tbody>`;
+                    if (d.records && d.records.length > 0) {
+                        html += d.records.map(r => `<tr class="border-b border-slate-800/50 hover:bg-slate-800/30"><td class="py-2 px-3 text-slate-300">${r.ingredient}</td><td class="py-2 px-3 text-right font-bold text-red-400">-${parseFloat(r.kg).toFixed(2)} kg/und</td></tr>`).join('');
+                    } else {
+                        html += `<tr><td class="py-2 px-3 text-slate-500 italic text-center" colspan="2">Nenhum ingrediente foi abatido (Verifique as Fichas Técnicas).</td></tr>`;
+                    }
+                    html += `</tbody></table>`;
+
+                    div.innerHTML = html;
+                } catch(e) { 
+                    div.innerHTML = `<div class="p-4 text-red-400 text-center font-bold text-xs"><i class="fas fa-exclamation-triangle mb-2 text-xl block"></i> Erro ao carregar os detalhes. Se este lote é antigo, exclua e envie o arquivo novamente!</div>`; 
+                }
             }
         }
 
-        // Labels Dinâmicas de Arquivos
-        function handleFileLabel(iId, lId, dT) { document.getElementById(iId).addEventListener('change', (e) => { const c = e.target.files.length; document.getElementById(lId).innerText = c > 1 ? `${c} arquivos` : (c === 1 ? e.target.files[0].name.substring(0,15)+"..." : dT); }); }
-        handleFileLabel('recipeFile', 'recipeFileLabel', 'Upload Tabela Completa');
-        handleFileLabel('compFiles', 'compFilesLabel', 'Anexar NFs');
-        handleFileLabel('invFiles', 'invFilesLabel', 'CSV\'s');
-        handleFileLabel('weekFile', 'weekFileLabel', 'CSV PDV');
-        handleFileLabel('manualCsvFile', 'manualCsvLabel', 'Escolher Arquivo');
-        
         async function uploadWeek() { const f = document.getElementById('weekFile').files[0]; if(!f)return; const fd = new FormData(); fd.append('file', f); await fetchAuth('/api/weeks/upload', {method:'POST', body:fd}); loadWeeks(); loadEstoqueReal(); }
         async function uploadCompras() { const f = document.getElementById('compFiles').files; if(!f.length)return; const fd = new FormData(); for(let x of f) fd.append('file', x); await fetchAuth('/api/compras/upload', {method:'POST', body:fd}); loadCompras(); loadEstoqueReal(); }
         async function uploadInventario() { const d=document.getElementById('invDate').value; const f=document.getElementById('invFiles').files; if(!d||!f.length)return; const fd=new FormData(); for(let x of f) fd.append('files',x); await fetchAuth(`/api/inventario/upload?date=${d}`, {method:'POST', body:fd}); loadInventario(); loadEstoqueReal(); }
@@ -582,8 +760,8 @@
         async function uploadRecipes() { const f = document.getElementById('recipeFile').files[0]; if(!f) return; const fd = new FormData(); fd.append('file', f); await fetchAuth('/api/recipes/upload', {method:'POST', body:fd}); loadRecipes(); }
 
         // --- SISTEMA E ADMIN ---
-        function openResetModal() { document.getElementById('modalTitle').innerText="Admin / Limpeza"; document.getElementById('modalBody').innerHTML=`<div class="space-y-2"><button onclick="rs('vendas')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-bell w-6"></i> Zerar Vendas</button><button onclick="rs('compras')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-shopping-cart w-6"></i> Zerar Compras</button><button onclick="rs('inventario')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-list w-6"></i> Zerar Contagem (Base)</button><button onclick="rs('fichas')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-file w-6"></i> Apagar Fichas Técnicas</button><button onclick="rs('all')" class="w-full text-left px-4 py-3 bg-red-600 text-white rounded text-xs font-black uppercase mt-4"><i class="fas fa-skull w-6"></i> Resetar Software Inteiro</button></div>`; document.getElementById('sysModal').classList.remove('hidden'); }
-        async function rs(t) { if(!confirm(`Atenção: Os dados não poderão ser recuperados. Confirmar exclusão?`)) return; closeModal(); try { if(t==='all'){await fetchAuth('/api/all',{method:'DELETE'}); location.reload(); return;} if(t==='vendas'){const d=await(await fetchAuth('/api/weeks')).json(); for(let w of d)await fetchAuth(`/api/weeks/${w.week_code}`,{method:'DELETE'}); loadWeeks(); loadEstoqueReal();} else if(t==='compras'){const d=await(await fetchAuth('/api/compras')).json(); for(let x of [...new Set(d.map(c=>c.data_compra))]) await fetchAuth(`/api/compras/data/${x}`,{method:'DELETE'}); loadCompras(); loadEstoqueReal();} else if(t==='inventario'){const d=await(await fetchAuth('/api/inventario')).json(); for(let x of [...new Set(d.map(c=>c.data_contagem))]) await fetchAuth(`/api/inventario/data/${x}`,{method:'DELETE'}); loadInventario(); loadEstoqueReal();} else if(t==='fichas'){const d=await(await fetchAuth('/api/recipes/list')).json(); for(let x of [...new Set(d.map(r=>r.dish))]) await fetchAuth(`/api/recipes/${encodeURIComponent(x)}`,{method:'DELETE'}); loadRecipes();} alert('Limpeza finalizada.'); }catch(e){alert('Erro');} }
+        function openResetModal() { document.getElementById('modalTitle').innerText="Admin / Limpeza"; document.getElementById('modalBody').innerHTML=`<div class="space-y-2"><button onclick="rs('vendas')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-bell w-6"></i> Zerar Vendas</button><button onclick="rs('compras')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-shopping-cart w-6"></i> Zerar Compras</button><button onclick="rs('inventario')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-list w-6"></i> Zerar Contagem (Base)</button><button onclick="rs('fichas')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-file w-6"></i> Apagar Fichas Técnicas</button><button onclick="rs('almoxarifado')" class="w-full text-left px-4 py-3 bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded border border-slate-700 text-xs font-bold uppercase tracking-wider"><i class="fas fa-box-open w-6"></i> Zerar Almoxarifado</button><button onclick="rs('all')" class="w-full text-left px-4 py-3 bg-red-600 text-white rounded text-xs font-black uppercase mt-4"><i class="fas fa-skull w-6"></i> Resetar Software Inteiro</button></div>`; document.getElementById('sysModal').classList.remove('hidden'); }
+        async function rs(t) { if(!confirm(`Atenção: Os dados não poderão ser recuperados. Confirmar exclusão?`)) return; closeModal(); try { if(t==='all'){await fetchAuth('/api/all',{method:'DELETE'}); location.reload(); return;} if(t==='vendas'){const d=await(await fetchAuth('/api/weeks')).json(); for(let w of d)await fetchAuth(`/api/weeks/${w.week_code}`,{method:'DELETE'}); loadWeeks(); loadEstoqueReal();} else if(t==='compras'){const d=await(await fetchAuth('/api/compras')).json(); for(let x of [...new Set(d.map(c=>c.data_compra))]) await fetchAuth(`/api/compras/data/${x}`,{method:'DELETE'}); loadCompras(); loadEstoqueReal();} else if(t==='inventario'){const d=await(await fetchAuth('/api/inventario')).json(); for(let x of [...new Set(d.map(c=>c.data_contagem))]) await fetchAuth(`/api/inventario/data/${x}`,{method:'DELETE'}); loadInventario(); loadEstoqueReal();} else if(t==='fichas'){const d=await(await fetchAuth('/api/recipes/list')).json(); for(let x of [...new Set(d.map(r=>r.dish))]) await fetchAuth(`/api/recipes/${encodeURIComponent(x)}`,{method:'DELETE'}); loadRecipes();} else if(t==='almoxarifado'){const d=await(await fetchAuth('/api/estoque-manual')).json(); for(let x of d) await fetchAuth(`/api/estoque-manual/${x.id}`,{method:'DELETE'}); loadEstoqueManual();} alert('Limpeza finalizada.'); }catch(e){alert('Erro');} }
         async function loadLogs() {
             const data = await (await fetchAuth('/api/upload-logs')).json();
             document.getElementById('logsBody').innerHTML = data.map(l => `<tr class="hover:bg-slate-800/30"><td class="px-6 py-2 text-slate-500 text-[11px]">${new Date(l.created_at).toLocaleString('pt-BR')}</td><td class="px-6 py-2"><span class="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${l.type}</span></td><td class="px-6 py-2 text-white text-xs truncate max-w-[200px]">${l.filename}</td><td class="px-6 py-2 text-emerald-400 font-semibold text-[11px]">${l.result||''}</td><td class="px-6 py-2"><button onclick="if(confirm('Excluir log?')) fetchAuth('/api/uploads/${l.id}',{method:'DELETE'}).then(loadLogs);" class="text-slate-600 hover:text-red-500"><i class="fas fa-trash"></i></button></td></tr>`).join('');
@@ -591,7 +769,5 @@
 
         initSupabase();
     </script>
-</body>
-</html>
 </body>
 </html>
