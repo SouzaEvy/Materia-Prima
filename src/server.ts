@@ -250,7 +250,7 @@ app.post(
 );
 
 // ==========================================
-// 🛎️ UPLOAD DE VENDAS (PDV) - EXTRATOR AGILE PDV DIÁRIO
+// 🛎️ UPLOAD DE VENDAS (PDV) - LÓGICA DIÁRIA (TOP-DOWN)
 // ==========================================
 app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
@@ -260,80 +260,103 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
     const raw = fsLib.readFileSync(req.file.path);
     let fileContent = raw.toString('utf8');
     
-    // 1. DESCODIFICAR CONTEÚDO (E-MAILS .EML)
+    // 1. DESCODIFICAR E-MAIL (.EML)
     if (fileContent.includes('base64') || req.file.originalname.toLowerCase().endsWith('.eml')) {
-        const b64Regex = /(?:[A-Za-z0-9+/]{40,}\r?\n?)+[A-Za-z0-9+/]*={0,2}/g;
-        const matches = fileContent.match(b64Regex);
-        if (matches && matches.length > 0) {
-            matches.sort((a: string, b: string) => b.length - a.length);
-            const decoded = Buffer.from(matches[0].replace(/\s+/g, ''), 'base64').toString('utf8');
-            if (decoded.includes('<html')) fileContent = decoded;
+        const parts = fileContent.split(/\r?\n\r?\n/);
+        for (const p of parts) {
+            if (p.length > 1000) { // O corpo é sempre o maior bloco
+                try {
+                    const decoded = Buffer.from(p.replace(/\s+/g, ''), 'base64').toString('utf8');
+                    if (decoded.includes('<table')) { fileContent = decoded; break; }
+                } catch(e) {}
+            }
         }
     }
 
     const $ = cheerio.load(fileContent);
 
-    // 2. EXTRAÇÃO DA DATA REAL DO DIA (Ex: 29/04/2026)
+    // 2. PESCAR A DATA REAL (Ex: 12/05/2026)
     let finalDate = "";
     const dateMatch = $('body').text().match(/(\d{2})\/(\d{2})\/(\d{4})/);
     if (dateMatch) {
-        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Salva como 2026-04-29
+        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Formato ISO para a base de dados
     } else {
-        finalDate = new Date().toISOString().split('T')[0]; 
+        finalDate = new Date().toISOString().split('T')[0];
     }
 
-    // 3. EXTRAÇÃO DO FATURAMENTO (Para o CMV)
+    // 3. EXTRAÇÃO DO FATURAMENTO (Logo no Início)
     let faturamentoDia = 0;
+    let encontrouFaturamento = false;
+
     $('table').each((_, table) => {
-        if ($(table).text().includes('POSIÇÃO DE CAIXA (DO DIA)')) {
+        if (encontrouFaturamento) return;
+        const text = $(table).text().toUpperCase();
+        // Foca apenas na Posição de Caixa do DIA (que fica no topo)
+        if (text.includes('POSIÇÃO DE CAIXA (DO DIA)') || text.includes('POSICAO DE CAIXA (DO DIA)')) {
             $(table).find('tr').each((_, tr) => {
-                if ($(tr).text().includes('Produtos vendidos')) {
-                    const val = $(tr).find('td').last().text().replace('R$', '').trim();
-                    faturamentoDia = parseFloat(val.replace(/\./g, '').replace(',', '.'));
+                const rowText = $(tr).text().toUpperCase();
+                if (rowText.includes('PRODUTOS VENDIDOS')) {
+                    const valStr = $(tr).find('td').last().text().replace('R$', '').trim();
+                    const val = parseFloat(valStr.replace(/\./g, '').replace(',', '.'));
+                    if (!isNaN(val)) {
+                        faturamentoDia = val;
+                        encontrouFaturamento = true;
+                    }
                 }
             });
         }
     });
 
-    // 4. EXTRAÇÃO DOS PRATOS (Abatimento por Ficha Técnica)
+    // 4. EXTRAÇÃO DOS PRATOS (A primeira tabela de produtos vendidos)
     const pratosVendidos = new Map<string, number>();
+    let encontrouTabelaPratos = false;
+
     $('table').each((_, table) => {
-        // Localiza a tabela de vendas detalhada no final do e-mail
-        if ($(table).find('tr').first().text().includes('Produtos Vendidos')) {
+        if (encontrouTabelaPratos) return;
+        const firstRow = $(table).find('tr').first().text().toUpperCase();
+        
+        // Procura a tabela de pratos, ignorando resumos financeiros
+        if (firstRow.includes('PRODUTOS VENDIDOS') && !firstRow.includes('POSIÇÃO DE CAIXA')) {
+            encontrouTabelaPratos = true;
+            
             $(table).find('tr').each((i, tr) => {
                 const tds = $(tr).find('td');
                 if (tds.length >= 2) {
                     const nome = $(tds[0]).text().trim().toUpperCase();
-                    if (nome === 'PRODUTO' || nome === 'TOTAL' || nome.includes('SISTEMA')) return;
                     
-                    const qtd = parseFloat($(tds[1]).text().trim().replace(',', '.'));
-                    if (nome && !isNaN(qtd)) pratosVendidos.set(nome, (pratosVendidos.get(nome) || 0) + qtd);
+                    // REGRA DE OURO: Se chegar no TOTAL, para de ler para não pegar o Mês
+                    if (nome === 'TOTAL' || nome.includes('SISTEMA AGILE') || nome === 'PRODUTO') return;
+                    
+                    const qtd = parseFloat($(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
+                    if (nome && !isNaN(qtd) && qtd > 0) {
+                        pratosVendidos.set(nome, (pratosVendidos.get(nome) || 0) + qtd);
+                    }
                 }
             });
         }
     });
 
-    // 5. CÁLCULO DE CONSUMO (Fichas Técnicas)
-    // Busca as fichas para saber quanto de cada matéria-prima gastou
-    const { data: allRecipes } = await supabase.from('recipes').select('name, recipe_ingredients(ingredient, grams_per_portion)');
-    
+    if (pratosVendidos.size === 0) throw new Error("Não conseguimos extrair os pratos do topo do ficheiro.");
+
+    // 5. CÁLCULO DE CUSTO (Fichas Técnicas)
+    const { data: recipes } = await supabase.from('recipes').select('name, recipe_ingredients(ingredient, grams_per_portion)');
     const consumptionMap = new Map<string, number>();
     let totalKgGlobal = 0;
 
-    for (const [pratoNome, qtdVendida] of pratosVendidos.entries()) {
-        const recipe = allRecipes?.find(r => r.name.toUpperCase() === pratoNome);
+    for (const [prato, qtd] of pratosVendidos.entries()) {
+        const recipe = recipes?.find(r => r.name.toUpperCase() === prato);
         if (recipe && recipe.recipe_ingredients) {
             recipe.recipe_ingredients.forEach((ing: any) => {
-                const kgGasto = (ing.grams_per_portion * qtdVendida) / 1000;
-                totalKgGlobal += kgGasto;
-                consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kgGasto);
+                const kg = (ing.grams_per_portion * qtd) / 1000;
+                totalKgGlobal += kg;
+                consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kg);
             });
         }
     }
 
-    // 6. SALVAR NA BASE DE DADOS (Dando Upsert pela Data)
+    // 6. SALVAR (Substitui o dia se você enviar de novo)
     const { data: weekRecord, error: weekErr } = await supabase.from('weeks').upsert({
-        week_code: finalDate,
+        week_code: finalDate, // Agora usa a data (ex: 2026-04-29) e não o nome do ficheiro
         total_portions: Array.from(pratosVendidos.values()).reduce((a, b) => a + b, 0),
         valor_total: faturamentoDia,
         pratos_vendidos: Object.fromEntries(pratosVendidos)
@@ -341,22 +364,19 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
 
     if (weekErr) throw weekErr;
 
-    // Salva os ingredientes gastos para o estoque automático
+    // Limpa ingredientes velhos do dia e insere os novos
     await supabase.from('consumption_records').delete().eq('week_id', weekRecord.id);
     const records = Array.from(consumptionMap.entries()).map(([ing, kg]) => ({
         week_id: weekRecord.id, ingredient: ing, kg: kg
     }));
     if (records.length > 0) await supabase.from('consumption_records').insert(records);
 
-    res.json({ success: true, message: `✅ Movimento de ${finalDate} processado!\nFaturamento: R$ ${faturamentoDia.toFixed(2)}` });
+    res.json({ success: true, message: `✅ Movimento de ${finalDate} processado!\nFaturamento: R$ ${faturamentoDia.toFixed(2)}\nPratos Lidos: ${pratosVendidos.size}` });
 
   } catch (err: any) { 
-    console.error(err);
     res.status(500).json({ error: err.message }); 
   } finally {
-    if (req.file) {
-        try { require('fs').unlinkSync(req.file.path); } catch(e) {}
-    }
+    if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e) {} }
   }
 });
 
