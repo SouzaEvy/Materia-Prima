@@ -291,16 +291,27 @@ app.put('/api/estoque-manual/justificativa/:id', async (req: Request, res: Respo
 });
 
 // ==========================================
-// 🛎️ UPLOAD DE VENDAS (PDV) - LÓGICA DIÁRIA DEFINITIVA (DATA + TOTAL FINAL)
+// 🛎️ UPLOAD DE VENDAS (PDV) - EXTRATOR DEFINITIVO AGILE PDV
 // ==========================================
 app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.file) throw new Error('Nenhum ficheiro enviado.');
+    if (!req.file) throw new Error('Nenhum arquivo enviado.');
 
     const raw = fs.readFileSync(req.file.path);
-    let fileContent = raw.toString('utf8');
-    
-    // 1. DESCODIFICAR E-MAIL (.EML / BASE64)
+    const originalContent = raw.toString('utf8');
+    let fileContent = originalContent;
+
+    // 1. EXTRAÇÃO DA DATA BLINDADA (Feita ANTES de qualquer alteração)
+    let finalDate = "";
+    // Vasculha o e-mail inteiro atrás da data do movimento
+    const dateMatch = originalContent.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (dateMatch) {
+        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Salva perfeitamente como 2026-05-12
+    } else {
+        finalDate = new Date().toISOString().split('T')[0]; // Se falhar, usa hoje. MAS NUNCA USA W19!
+    }
+
+    // 2. DESCODIFICAR E-MAIL (.EML / BASE64)
     if (fileContent.includes('base64') || req.file.originalname.toLowerCase().endsWith('.eml')) {
         const parts = fileContent.split(/\r?\n\r?\n/);
         for (const p of parts) {
@@ -315,90 +326,93 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
 
     const $ = cheerio.load(fileContent);
 
-    // 2. EXTRAÇÃO DA DATA REAL (Busca o dia do movimento no texto)
-    let finalDate = "";
-    const bodyText = $('body').text();
-    const dateMatch = bodyText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    if (dateMatch) {
-        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // vira 2026-04-29
-    } else {
-        finalDate = new Date().toISOString().split('T')[0];
-    }
-
+    // 3. CAÇADOR DE PRATOS E DO VALOR TOTAL (Abaixo da Tabela)
     let faturamentoTotal = 0;
     const pratosVendidos = new Map<string, number>();
 
-    // 3. PROCESSADOR DE TABELAS (Acha Produtos e o Total no Fim)
-    $('table').each((_i: number, table: any) => {
-        const rows = $(table).find('tr');
-        const firstRowText = $(rows[0]).text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        
-        // Verifica se é a tabela detalhada de produtos vendidos
-        if (firstRowText.includes('PRODUTOS VENDIDOS') && !firstRowText.includes('POSICAO DE CAIXA')) {
-            
-            rows.each((_j: number, tr: any) => {
-                const tds = $(tr).find('td');
-                if (tds.length < 2) return;
+    let dentroDaTabelaPratos = false;
+    let indexPrato = 0;
+    let indexQtd = 1;
 
-                const col0 = $(tds[0]).text().trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                
-                // PEGA O VALOR TOTAL NO FINAL DA TABELA (Sua solicitação!)
-                if (col0 === 'TOTAL') {
-                    const fullRowText = $(tr).text().replace('Total', '').replace('R$', '').trim();
-                    const moneyMatch = fullRowText.match(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}/);
-                    if (moneyMatch) {
-                        faturamentoTotal = parseFloat(moneyMatch[0].replace(/\./g, '').replace(',', '.'));
-                    }
-                    return;
-                }
+    $('tr').each((_idx: number, tr: any) => {
+        const tds = $(tr).find('td, th');
+        if (tds.length === 0) return;
 
-                // Ignora cabeçalhos
-                if (col0 === 'PRODUTO' || col0 === 'PRODUTOS VENDIDOS' || col0 === 'DESCRICAO') return;
+        const col0 = $(tds[0]).text().trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-                const nomePrato = $(tds[0]).text().trim().toUpperCase();
-                let qtdRaw = $(tds[1]).text().trim();
-                const qtd = parseFloat(qtdRaw.replace(/\./g, '').replace(',', '.'));
-
-                if (nomePrato && !isNaN(qtd) && qtd > 0) {
-                    pratosVendidos.set(nomePrato, (pratosVendidos.get(nomePrato) || 0) + qtd);
-                }
+        // Deteta a linha de cabeçalho da Tabela
+        if (col0 === 'PRODUTO' || col0 === 'DESCRICAO') {
+            dentroDaTabelaPratos = true;
+            tds.each((i: number, td: any) => {
+                const cabecalho = $(td).text().trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                if (cabecalho === 'PRODUTO' || cabecalho === 'DESCRICAO') indexPrato = i;
+                if (cabecalho === 'QUANTIDADE' || cabecalho === 'QTD') indexQtd = i;
             });
+            return;
+        }
+
+        if (dentroDaTabelaPratos) {
+            // REGRA DE OURO: Acha o "Total" logo abaixo dos pratos!
+            if (col0 === 'TOTAL') {
+                const valStr = $(tds[tds.length - 1]).text().replace('R$', '').trim();
+                const val = parseFloat(valStr.replace(/\./g, '').replace(',', '.'));
+                if (!isNaN(val) && val > 0) {
+                    faturamentoTotal = val;
+                }
+                dentroDaTabelaPratos = false; // Fecha a tabela, ignora o resto do e-mail
+                return;
+            }
+
+            // Ignora sujeiras no meio da tabela
+            if (col0 === 'PRODUTOS VENDIDOS' || col0.includes('SISTEMA AGILE')) return;
+
+            // Extrai o Prato e a Quantidade
+            const pratoNome = $(tds[indexPrato]).text().trim().toUpperCase().replace(/"/g, '');
+            let qtdStr = $(tds[indexQtd]).text().trim();
+            if (qtdStr.includes(',')) qtdStr = qtdStr.replace(/\./g, '').replace(',', '.');
+            const qtd = parseFloat(qtdStr);
+
+            if (pratoNome && !isNaN(qtd) && qtd > 0) {
+                pratosVendidos.set(pratoNome, (pratosVendidos.get(pratoNome) || 0) + qtd);
+            }
         }
     });
 
-    if (pratosVendidos.size === 0) throw new Error("Não consegui extrair os produtos. Verifique se o e-mail contém a tabela 'Produtos Vendidos'.");
+    if (pratosVendidos.size === 0) throw new Error("A Tabela 'Produtos Vendidos' não foi encontrada.");
 
-    // 4. LÓGICA ANTIGA DAS FICHAS TÉCNICAS (ABATIMENTO DE ESTOQUE)
+    // 4. LÓGICA DAS FICHAS TÉCNICAS (Abatimento de Estoque que você pediu para manter)
     const { data: allRecipes } = await supabase.from('recipes').select('name, recipe_ingredients(ingredient, grams_per_portion)');
     
     const consumptionMap = new Map<string, number>();
     let totalPortions = 0;
+    let totalKgGlobal = 0;
 
     for (const [pratoNome, qtdVendida] of pratosVendidos.entries()) {
         totalPortions += qtdVendida;
-        // TIPAGEM PARA O VS CODE NÃO RECLAMAR
         const recipe = allRecipes?.find((r: any) => r.name.toUpperCase() === pratoNome);
         
         if (recipe && recipe.recipe_ingredients) {
             recipe.recipe_ingredients.forEach((ing: any) => {
                 const kgGasto = (ing.grams_per_portion * qtdVendida) / 1000;
+                totalKgGlobal += kgGasto;
                 consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kgGasto);
             });
         }
     }
 
-    // 5. SALVAR NO BANCO (Upsert pela DATA para matar o erro das semanas)
+    // 5. SALVAR NO BANCO (Cravando a Data Real)
     const pratosObj = Object.fromEntries(pratosVendidos);
     const { data: weekRecord, error: weekErr } = await supabase.from('weeks').upsert({
-        week_code: finalDate, // Salva como '2026-05-12' e não 'W19'
+        week_code: finalDate, // NUNCA MAIS W19!
         total_portions: totalPortions,
+        total_kg: totalKgGlobal,
         valor_total: faturamentoTotal,
         pratos_vendidos: pratosObj
     }, { onConflict: 'week_code' }).select('id').single();
 
     if (weekErr || !weekRecord) throw new Error('Erro ao salvar no banco: ' + weekErr?.message);
 
-    // Limpa consumos antigos do dia para não duplicar
+    // Evita duplicar abatimentos se subir o e-mail de novo
     await supabase.from('consumption_records').delete().eq('week_id', weekRecord.id);
 
     const records = Array.from(consumptionMap.entries()).map(([ing, kg]: [string, number]) => ({
@@ -409,7 +423,7 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
 
     res.json({ 
         success: true, 
-        message: `✅ SUCESSO! Movimento de ${finalDate} processado.\nFaturamento Extraído: R$ ${faturamentoTotal.toFixed(2)}\nPratos Lidos: ${totalPortions}` 
+        message: `✅ DATA LIDA: ${finalDate}\nFaturamento: R$ ${faturamentoTotal.toFixed(2)}\nPratos Computados: ${totalPortions}` 
     });
 
   } catch (err: any) { 
