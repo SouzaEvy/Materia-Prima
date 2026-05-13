@@ -718,7 +718,35 @@
             }
         }
 
-        async function uploadWeek() { const f = document.getElementById('weekFile').files[0]; if(!f)return; const fd = new FormData(); fd.append('file', f); await fetchAuth('/api/weeks/upload', {method:'POST', body:fd}); loadWeeks(); loadEstoqueReal(); }
+        async function uploadWeek() { 
+            const f = document.getElementById('weekFile').files[0]; 
+            if(!f) return; 
+            
+            const btn = document.querySelector('button[onclick="uploadWeek()"]');
+            const originalText = btn.innerText;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            const fd = new FormData(); 
+            fd.append('file', f); 
+            try {
+                const res = await fetchAuth('/api/weeks/upload', {method:'POST', body:fd}); 
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error);
+                
+                alert(data.message); // Vai mostrar os valores e o sucesso!
+                
+                document.getElementById('weekFile').value = '';
+                document.getElementById('weekFileLabel').innerText = 'Upload CSV Vendas';
+            } catch(e) {
+                alert("ERRO: " + e.message); // Nunca mais um erro invisível!
+            }
+            
+            btn.innerHTML = originalText;
+            loadWeeks(); 
+            loadEstoqueReal(); 
+            loadDashboard(); // Força o gráfico do CMV a atualizar!
+        }
         async function uploadCompras() { const f = document.getElementById('compFiles').files; if(!f.length)return; const fd = new FormData(); for(let x of f) fd.append('file', x); await fetchAuth('/api/compras/upload', {method:'POST', body:fd}); loadCompras(); loadEstoqueReal(); }
         async function uploadInventario() { const d=document.getElementById('invDate').value; const f=document.getElementById('invFiles').files; if(!d||!f.length)return; const fd=new FormData(); for(let x of f) fd.append('files',x); await fetchAuth(`/api/inventario/upload?date=${d}`, {method:'POST', body:fd}); loadInventario(); loadEstoqueReal(); }
         async function deleteWeek(code) { if(confirm(`EXCLUIR a movimentação [${code}]?`)) { await fetchAuth(`/api/weeks/${code}`, {method:'DELETE'}); loadWeeks(); loadEstoqueReal(); } }

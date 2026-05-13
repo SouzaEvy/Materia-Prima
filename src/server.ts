@@ -250,155 +250,116 @@ app.post(
   }
 );
 
-// ── Route: POST /api/weeks/upload (CSV) ────────────────────────────
-app.post(
-  '/api/weeks/upload',
-  upload.single('file'),
-  async (req: Request, res: Response): Promise<void> => {
-    if (!req.file) {
-      res.status(400).json({ error: 'Nenhum arquivo enviado.' });
-      return;
+// ==========================================
+// 🛎️ UPLOAD DE VENDAS (PDV) - EXTRATOR AGILE PDV DIÁRIO
+// ==========================================
+app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) throw new Error('Nenhum ficheiro enviado.');
+
+    const fsLib = require('fs');
+    const raw = fsLib.readFileSync(req.file.path);
+    let fileContent = raw.toString('utf8');
+    
+    // 1. DESCODIFICAR CONTEÚDO (E-MAILS .EML)
+    if (fileContent.includes('base64') || req.file.originalname.toLowerCase().endsWith('.eml')) {
+        const b64Regex = /(?:[A-Za-z0-9+/]{40,}\r?\n?)+[A-Za-z0-9+/]*={0,2}/g;
+        const matches = fileContent.match(b64Regex);
+        if (matches && matches.length > 0) {
+            matches.sort((a: string, b: string) => b.length - a.length);
+            const decoded = Buffer.from(matches[0].replace(/\s+/g, ''), 'base64').toString('utf8');
+            if (decoded.includes('<html')) fileContent = decoded;
+        }
     }
 
-    const filepath = req.file.path;
+    const $ = cheerio.load(fileContent);
 
-    try {
-      const { count: recipeCount } = await supabase.from('recipes').select('id', { count: 'exact', head: true });
-      if (!recipeCount || recipeCount === 0) {
-        res.status(400).json({ error: '⚠️ Nenhuma ficha técnica encontrada! Suba as fichas técnicas primeiro.' });
-        return;
-      }
+    // 2. EXTRAÇÃO DA DATA REAL DO DIA (Ex: 29/04/2026)
+    let finalDate = "";
+    const dateMatch = $('body').text().match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (dateMatch) {
+        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Salva como 2026-04-29
+    } else {
+        finalDate = new Date().toISOString().split('T')[0]; 
+    }
 
-      const rawBuf = fs.readFileSync(filepath);
-      let textUtf8: string;
-      const b0 = rawBuf[0], b1 = rawBuf[1], b2 = rawBuf[2];
-
-      if (b0 === 0xFF && b1 === 0xFE) {
-        textUtf8 = rawBuf.slice(2).toString('utf16le');
-      } else if (b0 === 0xFE && b1 === 0xFF) {
-        const swapped = Buffer.alloc(rawBuf.length - 2);
-        for (let i = 0; i < swapped.length; i += 2) {
-          swapped[i] = rawBuf[i + 3];
-          swapped[i + 1] = rawBuf[i + 2];
+    // 3. EXTRAÇÃO DO FATURAMENTO (Para o CMV)
+    let faturamentoDia = 0;
+    $('table').each((_, table) => {
+        if ($(table).text().includes('POSIÇÃO DE CAIXA (DO DIA)')) {
+            $(table).find('tr').each((_, tr) => {
+                if ($(tr).text().includes('Produtos vendidos')) {
+                    const val = $(tr).find('td').last().text().replace('R$', '').trim();
+                    faturamentoDia = parseFloat(val.replace(/\./g, '').replace(',', '.'));
+                }
+            });
         }
-        textUtf8 = swapped.toString('utf16le');
-      } else if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
-        textUtf8 = rawBuf.slice(3).toString('utf8');
-      } else {
-        const asUtf8 = rawBuf.toString('utf8');
-        textUtf8 = asUtf8.includes('\uFFFD') ? Buffer.from(rawBuf.toString('latin1'), 'latin1').toString('utf8') : asUtf8;
-      }
+    });
 
-      textUtf8 = textUtf8.replace(/\u0000/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-
-      const firstLine = textUtf8.split('\n')[0] ?? '';
-      const delimiter = detectDelimiter(firstLine);
-      const rows = await parseCsvBuffer(Buffer.from(textUtf8), delimiter);
-
-      if (rows.length === 0) {
-        res.status(400).json({ error: 'Arquivo CSV vazio.' });
-        return;
-      }
-
-      const headerRow = rows[0].map(h => h.toLowerCase().trim().replace(/[^a-z_]/g, ''));
-      const colDescricao = headerRow.indexOf('descricao');
-      const colQtd       = headerRow.findIndex(h => h === 'qtd');
-      const isPdvFormat  = colDescricao >= 0 && colQtd >= 0;
-
-      const useColDesc = isPdvFormat ? colDescricao : 1;
-      const useColQtd  = isPdvFormat ? colQtd       : 2;
-      const dataRows   = rows.slice(1);
-
-      const weekCode: string = (typeof req.query.weekCode === 'string' && req.query.weekCode.match(/^\d{4}-W\d{2}$/))
-          ? req.query.weekCode
-          : getWeekToday();
-
-      const { data: allIngredients, error: fetchErr } = await supabase
-        .from('recipe_ingredients')
-        .select('ingredient, grams_per_portion, recipes(name)');
-
-      if (fetchErr) throw new Error(`Erro ao buscar receitas: ${fetchErr.message}`);
-
-      const recipeIngMap = new Map<string, { ingredient: string; grams: number }[]>();
-
-      for (const row of (allIngredients ?? [])) {
-        const recipesField = row.recipes as unknown as { name: string } | { name: string }[] | null;
-        if (!recipesField) continue;
-        const recipeName = Array.isArray(recipesField) ? recipesField[0]?.name : recipesField.name;
-        if (!recipeName) continue;
-        const key = recipeName.toLowerCase().trim();
-        if (!recipeIngMap.has(key)) recipeIngMap.set(key, []);
-        recipeIngMap.get(key)!.push({ ingredient: String(row.ingredient), grams: Number(row.grams_per_portion) });
-      }
-
-      let totalPortions = 0;
-      const ingredientTotals: Record<string, number> = {};
-      const matchedDishes = new Set<string>();
-      let skippedCount = 0;
-
-      for (const row of dataRows) {
-        if (row.length <= Math.max(useColDesc, useColQtd)) continue;
-        const dishName = (row[useColDesc] ?? '').trim();
-        const qty      = parseFloat((row[useColQtd] ?? '0').trim().replace(',', '.'));
-
-        if (!dishName || isNaN(qty) || qty <= 0) continue;
-        const recipe = recipeIngMap.get(dishName.toLowerCase());
-
-        if (!recipe) { skippedCount++; continue; }
-
-        totalPortions += qty;
-        matchedDishes.add(dishName);
-
-        for (const ing of recipe) {
-          ingredientTotals[ing.ingredient] = (ingredientTotals[ing.ingredient] ?? 0) + (ing.grams * qty);
+    // 4. EXTRAÇÃO DOS PRATOS (Abatimento por Ficha Técnica)
+    const pratosVendidos = new Map<string, number>();
+    $('table').each((_, table) => {
+        // Localiza a tabela de vendas detalhada no final do e-mail
+        if ($(table).find('tr').first().text().includes('Produtos Vendidos')) {
+            $(table).find('tr').each((i, tr) => {
+                const tds = $(tr).find('td');
+                if (tds.length >= 2) {
+                    const nome = $(tds[0]).text().trim().toUpperCase();
+                    if (nome === 'PRODUTO' || nome === 'TOTAL' || nome.includes('SISTEMA')) return;
+                    
+                    const qtd = parseFloat($(tds[1]).text().trim().replace(',', '.'));
+                    if (nome && !isNaN(qtd)) pratosVendidos.set(nome, (pratosVendidos.get(nome) || 0) + qtd);
+                }
+            });
         }
-      }
+    });
 
-      if (Object.keys(ingredientTotals).length === 0) {
-        res.status(400).json({ error: '⚠️ Nenhum prato com ficha técnica encontrado no arquivo.' });
-        return;
-      }
+    // 5. CÁLCULO DE CONSUMO (Fichas Técnicas)
+    // Busca as fichas para saber quanto de cada matéria-prima gastou
+    const { data: allRecipes } = await supabase.from('recipes').select('name, recipe_ingredients(ingredient, grams_per_portion)');
+    
+    const consumptionMap = new Map<string, number>();
+    let totalKgGlobal = 0;
 
-      const { data: weekRow, error: weekErr } = await supabase
-        .from('weeks')
-        .upsert({ week_code: weekCode, total_portions: totalPortions }, { onConflict: 'week_code' })
-        .select('id')
-        .single();
+    for (const [pratoNome, qtdVendida] of pratosVendidos.entries()) {
+        const recipe = allRecipes?.find(r => r.name.toUpperCase() === pratoNome);
+        if (recipe && recipe.recipe_ingredients) {
+            recipe.recipe_ingredients.forEach((ing: any) => {
+                const kgGasto = (ing.grams_per_portion * qtdVendida) / 1000;
+                totalKgGlobal += kgGasto;
+                consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kgGasto);
+            });
+        }
+    }
 
-      if (weekErr || !weekRow) throw new Error(`Erro ao salvar semana: ${weekErr?.message}`);
+    // 6. SALVAR NA BASE DE DADOS (Dando Upsert pela Data)
+    const { data: weekRecord, error: weekErr } = await supabase.from('weeks').upsert({
+        week_code: finalDate,
+        total_portions: Array.from(pratosVendidos.values()).reduce((a, b) => a + b, 0),
+        valor_total: faturamentoDia,
+        pratos_vendidos: Object.fromEntries(pratosVendidos)
+    }, { onConflict: 'week_code' }).select().single();
 
-      await supabase.from('consumption_records').delete().eq('week_id', weekRow.id);
+    if (weekErr) throw weekErr;
 
-      const records = Object.entries(ingredientTotals).map(([ingredient, grams]) => ({
-        week_id: weekRow.id,
-        ingredient,
-        kg: parseFloat((grams / 1000).toFixed(4)),
-      }));
+    // Salva os ingredientes gastos para o estoque automático
+    await supabase.from('consumption_records').delete().eq('week_id', weekRecord.id);
+    const records = Array.from(consumptionMap.entries()).map(([ing, kg]) => ({
+        week_id: weekRecord.id, ingredient: ing, kg: kg
+    }));
+    if (records.length > 0) await supabase.from('consumption_records').insert(records);
 
-      await supabase.from('consumption_records').insert(records);
+    res.json({ success: true, message: `✅ Movimento de ${finalDate} processado!\nFaturamento: R$ ${faturamentoDia.toFixed(2)}` });
 
-      try {
-        await supabase.from('upload_logs').insert({
-          type: 'saidas',
-          filename: req.file.originalname,
-          week_code: weekCode,
-          result: `${matchedDishes.size} pratos · ${totalPortions} porções · ${skippedCount} ignorados`,
-        });
-      } catch { /* ignore */ }
-
-      res.json({
-        success: true,
-        message: `✅ Semana ${weekCode} salva! ${totalPortions} porções processadas.`,
-      });
-
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro desconhecido';
-      res.status(500).json({ error: message });
-    } finally {
-      cleanFile(filepath);
+  } catch (err: any) { 
+    console.error(err);
+    res.status(500).json({ error: err.message }); 
+  } finally {
+    if (req.file) {
+        try { require('fs').unlinkSync(req.file.path); } catch(e) {}
     }
   }
-);
+});
 
 // ==========================================
 // 📦 ESTOQUE MANUAL (AUDITORIA E BALANÇO VIA CSV)
