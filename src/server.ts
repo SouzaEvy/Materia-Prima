@@ -291,14 +291,14 @@ app.put('/api/estoque-manual/justificativa/:id', async (req: Request, res: Respo
 });
 
 // ==========================================
-// 🛎️ UPLOAD DE VENDAS (PDV) - ROTA ÚNICA E DEFINITIVA
+// 🛎️ UPLOAD DE VENDAS (PDV) - ROTA ÚNICA, DEFINITIVA E TIPADA
 // ==========================================
 app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.file) throw new Error('Nenhum arquivo enviado.');
 
-    const fsLib = require('fs');
-    const raw = fsLib.readFileSync(req.file.path);
+    // Usa o fs importado globalmente no topo do ficheiro (import fs from 'fs')
+    const raw = fs.readFileSync(req.file.path);
     let fileContent = raw.toString('utf8');
     
     // 1. DESCODIFICAR E-MAIL (.EML / BASE64)
@@ -330,11 +330,14 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
     let faturamentoDia = 0;
     let encontrouFaturamento = false;
 
-    $('table').each((_, table) => {
+    // TIPAGEM APLICADA: _idx: number, table: any
+    $('table').each((_idx: number, table: any) => {
         if (encontrouFaturamento) return;
         const text = $(table).text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (text.includes('POSICAO DE CAIXA (DO DIA)')) {
-            $(table).find('tr').each((_, tr) => {
+            
+            // TIPAGEM APLICADA: _rIdx: number, tr: any
+            $(table).find('tr').each((_rIdx: number, tr: any) => {
                 const rowText = $(tr).text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                 if (rowText.includes('PRODUTOS VENDIDOS')) {
                     const valStr = $(tr).find('td').last().text().replace('R$', '').trim();
@@ -352,14 +355,16 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
     const pratosVendidos = new Map<string, number>();
     let encontrouTabelaPratos = false;
 
-    $('table').each((_, table) => {
+    // TIPAGEM APLICADA
+    $('table').each((_idx: number, table: any) => {
         if (encontrouTabelaPratos) return;
         const firstRow = $(table).find('tr').first().text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         
         if (firstRow.includes('PRODUTOS VENDIDOS') && !firstRow.includes('POSICAO DE CAIXA')) {
             encontrouTabelaPratos = true;
             
-            $(table).find('tr').each((i, tr) => {
+            // TIPAGEM APLICADA
+            $(table).find('tr').each((_rIdx: number, tr: any) => {
                 const tds = $(tr).find('td');
                 if (tds.length >= 2) {
                     const nome = $(tds[0]).text().trim().toUpperCase();
@@ -386,8 +391,12 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
 
     for (const [pratoNome, qtdVendida] of pratosVendidos.entries()) {
         totalPortions += qtdVendida; // Conta o número de pratos
-        const recipe = allRecipes?.find(r => r.name.toUpperCase() === pratoNome);
+        
+        // TIPAGEM APLICADA: r: any
+        const recipe = allRecipes?.find((r: any) => r.name.toUpperCase() === pratoNome);
         if (recipe && recipe.recipe_ingredients) {
+            
+            // TIPAGEM APLICADA: ing: any
             recipe.recipe_ingredients.forEach((ing: any) => {
                 const kgGasto = (ing.grams_per_portion * qtdVendida) / 1000;
                 totalKgGlobal += kgGasto;
@@ -398,7 +407,7 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
 
     // 6. SALVAR NA BASE DE DADOS USANDO A DATA COMO ID
     const { data: weekRecord, error: weekErr } = await supabase.from('weeks').upsert({
-        week_code: finalDate, // Salva como 2026-05-12 em vez de W19
+        week_code: finalDate, // Salva como 2026-05-12
         total_portions: totalPortions,
         total_kg: totalKgGlobal,
         valor_total: faturamentoDia,
@@ -410,7 +419,8 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
     // Apaga os registros antigos desse dia específico e insere os novos (impede duplicação)
     await supabase.from('consumption_records').delete().eq('week_id', weekRecord.id);
 
-    const records = Array.from(consumptionMap.entries()).map(([ing, kg]) => ({
+    // TIPAGEM APLICADA: [string, number]
+    const records = Array.from(consumptionMap.entries()).map(([ing, kg]: [string, number]) => ({
         week_id: weekRecord.id, ingredient: ing, kg: kg
     }));
     
@@ -423,7 +433,8 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
   } catch (err: any) { 
     res.status(500).json({ error: err.message }); 
   } finally {
-    if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e) {} }
+    // Usa o fs seguro importado no topo
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch(e) {} }
   }
 });
 
