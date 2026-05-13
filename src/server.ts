@@ -250,137 +250,6 @@ app.post(
 );
 
 // ==========================================
-// 🛎️ UPLOAD DE VENDAS (PDV) - LÓGICA DIÁRIA (TOP-DOWN)
-// ==========================================
-app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
-  try {
-    if (!req.file) throw new Error('Nenhum ficheiro enviado.');
-
-    const fsLib = require('fs');
-    const raw = fsLib.readFileSync(req.file.path);
-    let fileContent = raw.toString('utf8');
-    
-    // 1. DESCODIFICAR E-MAIL (.EML)
-    if (fileContent.includes('base64') || req.file.originalname.toLowerCase().endsWith('.eml')) {
-        const parts = fileContent.split(/\r?\n\r?\n/);
-        for (const p of parts) {
-            if (p.length > 1000) { // O corpo é sempre o maior bloco
-                try {
-                    const decoded = Buffer.from(p.replace(/\s+/g, ''), 'base64').toString('utf8');
-                    if (decoded.includes('<table')) { fileContent = decoded; break; }
-                } catch(e) {}
-            }
-        }
-    }
-
-    const $ = cheerio.load(fileContent);
-
-    // 2. PESCAR A DATA REAL (Ex: 12/05/2026)
-    let finalDate = "";
-    const dateMatch = $('body').text().match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    if (dateMatch) {
-        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Formato ISO para a base de dados
-    } else {
-        finalDate = new Date().toISOString().split('T')[0];
-    }
-
-    // 3. EXTRAÇÃO DO FATURAMENTO (Logo no Início)
-    let faturamentoDia = 0;
-    let encontrouFaturamento = false;
-
-    $('table').each((_, table) => {
-        if (encontrouFaturamento) return;
-        const text = $(table).text().toUpperCase();
-        // Foca apenas na Posição de Caixa do DIA (que fica no topo)
-        if (text.includes('POSIÇÃO DE CAIXA (DO DIA)') || text.includes('POSICAO DE CAIXA (DO DIA)')) {
-            $(table).find('tr').each((_, tr) => {
-                const rowText = $(tr).text().toUpperCase();
-                if (rowText.includes('PRODUTOS VENDIDOS')) {
-                    const valStr = $(tr).find('td').last().text().replace('R$', '').trim();
-                    const val = parseFloat(valStr.replace(/\./g, '').replace(',', '.'));
-                    if (!isNaN(val)) {
-                        faturamentoDia = val;
-                        encontrouFaturamento = true;
-                    }
-                }
-            });
-        }
-    });
-
-    // 4. EXTRAÇÃO DOS PRATOS (A primeira tabela de produtos vendidos)
-    const pratosVendidos = new Map<string, number>();
-    let encontrouTabelaPratos = false;
-
-    $('table').each((_, table) => {
-        if (encontrouTabelaPratos) return;
-        const firstRow = $(table).find('tr').first().text().toUpperCase();
-        
-        // Procura a tabela de pratos, ignorando resumos financeiros
-        if (firstRow.includes('PRODUTOS VENDIDOS') && !firstRow.includes('POSIÇÃO DE CAIXA')) {
-            encontrouTabelaPratos = true;
-            
-            $(table).find('tr').each((i, tr) => {
-                const tds = $(tr).find('td');
-                if (tds.length >= 2) {
-                    const nome = $(tds[0]).text().trim().toUpperCase();
-                    
-                    // REGRA DE OURO: Se chegar no TOTAL, para de ler para não pegar o Mês
-                    if (nome === 'TOTAL' || nome.includes('SISTEMA AGILE') || nome === 'PRODUTO') return;
-                    
-                    const qtd = parseFloat($(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
-                    if (nome && !isNaN(qtd) && qtd > 0) {
-                        pratosVendidos.set(nome, (pratosVendidos.get(nome) || 0) + qtd);
-                    }
-                }
-            });
-        }
-    });
-
-    if (pratosVendidos.size === 0) throw new Error("Não conseguimos extrair os pratos do topo do ficheiro.");
-
-    // 5. CÁLCULO DE CUSTO (Fichas Técnicas)
-    const { data: recipes } = await supabase.from('recipes').select('name, recipe_ingredients(ingredient, grams_per_portion)');
-    const consumptionMap = new Map<string, number>();
-    let totalKgGlobal = 0;
-
-    for (const [prato, qtd] of pratosVendidos.entries()) {
-        const recipe = recipes?.find(r => r.name.toUpperCase() === prato);
-        if (recipe && recipe.recipe_ingredients) {
-            recipe.recipe_ingredients.forEach((ing: any) => {
-                const kg = (ing.grams_per_portion * qtd) / 1000;
-                totalKgGlobal += kg;
-                consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kg);
-            });
-        }
-    }
-
-    // 6. SALVAR (Substitui o dia se você enviar de novo)
-    const { data: weekRecord, error: weekErr } = await supabase.from('weeks').upsert({
-        week_code: finalDate, // Agora usa a data (ex: 2026-04-29) e não o nome do ficheiro
-        total_portions: Array.from(pratosVendidos.values()).reduce((a, b) => a + b, 0),
-        valor_total: faturamentoDia,
-        pratos_vendidos: Object.fromEntries(pratosVendidos)
-    }, { onConflict: 'week_code' }).select().single();
-
-    if (weekErr) throw weekErr;
-
-    // Limpa ingredientes velhos do dia e insere os novos
-    await supabase.from('consumption_records').delete().eq('week_id', weekRecord.id);
-    const records = Array.from(consumptionMap.entries()).map(([ing, kg]) => ({
-        week_id: weekRecord.id, ingredient: ing, kg: kg
-    }));
-    if (records.length > 0) await supabase.from('consumption_records').insert(records);
-
-    res.json({ success: true, message: `✅ Movimento de ${finalDate} processado!\nFaturamento: R$ ${faturamentoDia.toFixed(2)}\nPratos Lidos: ${pratosVendidos.size}` });
-
-  } catch (err: any) { 
-    res.status(500).json({ error: err.message }); 
-  } finally {
-    if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e) {} }
-  }
-});
-
-// ==========================================
 // 📦 ESTOQUE MANUAL (AUDITORIA E BALANÇO VIA CSV)
 // ==========================================
 app.get('/api/estoque-manual', async (req: Request, res: Response) => {
@@ -422,7 +291,7 @@ app.put('/api/estoque-manual/justificativa/:id', async (req: Request, res: Respo
 });
 
 // ==========================================
-// 🛎️ UPLOAD DE VENDAS (PDV) - CAÇADOR BLINDADO
+// 🛎️ UPLOAD DE VENDAS (PDV) - ROTA ÚNICA E DEFINITIVA
 // ==========================================
 app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
@@ -431,139 +300,131 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
     const fsLib = require('fs');
     const raw = fsLib.readFileSync(req.file.path);
     let fileContent = raw.toString('utf8');
-    if (fileContent.includes('')) fileContent = raw.toString('latin1'); // Correção de acentuação forte
-
-    const linhasRaw = fileContent.split(/\r?\n/);
-
-    // ---------------------------------------------------------
-    // 1. TENTATIVA DIRETA DE ACHAR O FATURAMENTO
-    // ---------------------------------------------------------
-    let valorTotalVenda = 0;
-    for (const linha of linhasRaw) {
-        const l = linha.toUpperCase().replace(/"/g, ''); // Limpa sujeiras
-        // Busca a palavra-chave e extrai o dinheiro na mesma linha
-        if (l.includes('PRODUTOS VENDIDOS')) {
-            const match = l.match(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}/);
-            if (match) {
-                valorTotalVenda = parseFloat(match[0].replace(/\./g, '').replace(',', '.'));
-                break;
+    
+    // 1. DESCODIFICAR E-MAIL (.EML / BASE64)
+    if (fileContent.includes('base64') || req.file.originalname.toLowerCase().endsWith('.eml')) {
+        const parts = fileContent.split(/\r?\n\r?\n/);
+        for (const p of parts) {
+            if (p.length > 500) { 
+                try {
+                    const decoded = Buffer.from(p.replace(/\s+/g, ''), 'base64').toString('utf8');
+                    if (decoded.includes('<table')) { fileContent = decoded; break; }
+                } catch(e) {}
             }
         }
     }
 
-    // ---------------------------------------------------------
-    // 2. ENCONTRAR A TABELA DE PRATOS (Lendo de baixo pra cima)
-    // ---------------------------------------------------------
-    let linhaCabecalhoIdx = -1;
-    let delim = ',';
+    // Carrega o leitor de HTML
+    const $ = cheerio.load(fileContent);
 
-    for (let i = linhasRaw.length - 1; i >= 0; i--) {
-        const l = linhasRaw[i].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/"/g, '');
-        if ((l.includes('produto') || l.includes('descricao')) && (l.includes('quantidade') || l.includes('qtd'))) {
-            linhaCabecalhoIdx = i;
-            if (linhasRaw[i].includes(';')) delim = ';';
-            else if (linhasRaw[i].includes('\t')) delim = '\t';
-            break;
-        }
+    // 2. EXTRAÇÃO DA DATA REAL (Ex: 12/05/2026 -> vira 2026-05-12)
+    let finalDate = "";
+    const dateMatch = $('body').text().match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (dateMatch) {
+        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+    } else {
+        finalDate = new Date().toISOString().split('T')[0];
     }
 
-    if (linhaCabecalhoIdx === -1) throw new Error('Não encontrei as colunas "Produto" e "Quantidade" no CSV.');
+    // 3. EXTRAÇÃO DO FATURAMENTO (Acha a primeira caixa do Dia)
+    let faturamentoDia = 0;
+    let encontrouFaturamento = false;
 
-    const cabecalhos = linhasRaw[linhaCabecalhoIdx].split(delim).map((c: string) => c.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim());
-    
-    // Busca flexível de colunas
-    const finalIdxPrato = cabecalhos.findIndex((c: string) => c === 'produto' || c === 'descricao' || c === 'prato' || c === 'nome' || c.includes('produto'));
-    const finalIdxQtd = cabecalhos.findIndex((c: string) => c === 'quantidade' || c === 'qtd' || c.includes('quant') || c.includes('qtd'));
-    const finalIdxValor = cabecalhos.findIndex((c: string) => c === 'total' || c === 'valor total' || c === 'valor' || c.includes('total'));
-
-    const pratosVendidos = new Map();
-    let somaFallback = 0; // O nosso plano B para o Faturamento
-
-    for (let i = linhaCabecalhoIdx + 1; i < linhasRaw.length; i++) {
-        if (!linhasRaw[i].trim()) continue;
-        const colunas = linhasRaw[i].split(delim);
-
-        const pratoStr = colunas[finalIdxPrato]?.replace(/"/g, '').trim().toUpperCase() || '';
-        if (!pratoStr || pratoStr.includes('TOTAL') || pratoStr.includes('SUBTOTAL') || pratoStr.includes('PAGAMENTO')) continue;
-
-        let qtdRaw = String(colunas[finalIdxQtd] || '0').replace(/"/g, '').trim();
-        if (qtdRaw.includes(',')) qtdRaw = qtdRaw.replace(/\./g, '').replace(',', '.');
-        const qtd = parseFloat(qtdRaw);
-
-        let valL = 0;
-        if (finalIdxValor !== -1 && colunas[finalIdxValor]) {
-            let vRaw = String(colunas[finalIdxValor]).replace(/"/g, '').replace('R$', '').trim();
-            if (vRaw.includes(',')) vRaw = vRaw.replace(/\./g, '').replace(',', '.');
-            valL = parseFloat(vRaw);
+    $('table').each((_, table) => {
+        if (encontrouFaturamento) return;
+        const text = $(table).text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (text.includes('POSICAO DE CAIXA (DO DIA)')) {
+            $(table).find('tr').each((_, tr) => {
+                const rowText = $(tr).text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                if (rowText.includes('PRODUTOS VENDIDOS')) {
+                    const valStr = $(tr).find('td').last().text().replace('R$', '').trim();
+                    const val = parseFloat(valStr.replace(/\./g, '').replace(',', '.'));
+                    if (!isNaN(val)) {
+                        faturamentoDia = val;
+                        encontrouFaturamento = true;
+                    }
+                }
+            });
         }
-
-        if (qtd > 0) {
-            pratosVendidos.set(pratoStr, (pratosVendidos.get(pratoStr) || 0) + qtd);
-            if (!isNaN(valL)) somaFallback += valL;
-        }
-    }
-
-    // Se o CSV for uma bagunça e não achou a palavra "Produtos vendidos" no topo, usa a soma dos itens!
-    if (valorTotalVenda === 0 && somaFallback > 0) {
-        valorTotalVenda = somaFallback;
-    }
-
-    // ---------------------------------------------------------
-    // 3. RECIPES E CONSUMPTION (Abatimento)
-    // ---------------------------------------------------------
-    const { data: recipes, error: errRec } = await supabase.from('recipes').select('*');
-    if (errRec) throw errRec;
-
-    const recipesMap = new Map();
-    recipes.forEach((r: any) => {
-      const p = r.dish.toUpperCase();
-      if (!recipesMap.has(p)) recipesMap.set(p, []);
-      recipesMap.get(p).push(r);
     });
 
-    const consumptionMap = new Map();
+    // 4. EXTRAÇÃO DOS PRATOS DO DIA
+    const pratosVendidos = new Map<string, number>();
+    let encontrouTabelaPratos = false;
+
+    $('table').each((_, table) => {
+        if (encontrouTabelaPratos) return;
+        const firstRow = $(table).find('tr').first().text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        if (firstRow.includes('PRODUTOS VENDIDOS') && !firstRow.includes('POSICAO DE CAIXA')) {
+            encontrouTabelaPratos = true;
+            
+            $(table).find('tr').each((i, tr) => {
+                const tds = $(tr).find('td');
+                if (tds.length >= 2) {
+                    const nome = $(tds[0]).text().trim().toUpperCase();
+                    // Ignora cabeçalhos e rodapés da tabela
+                    if (nome === 'TOTAL' || nome.includes('SISTEMA AGILE') || nome === 'PRODUTO' || nome === 'DESCRICAO') return;
+                    
+                    const qtd = parseFloat($(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
+                    if (nome && !isNaN(qtd) && qtd > 0) {
+                        pratosVendidos.set(nome, (pratosVendidos.get(nome) || 0) + qtd);
+                    }
+                }
+            });
+        }
+    });
+
+    if (pratosVendidos.size === 0) throw new Error("Não consegui achar os pratos vendidos. Verifique o arquivo.");
+
+    // 5. O JEITO ANTIGO E PERFEITO DAS FICHAS TÉCNICAS
+    const { data: allRecipes } = await supabase.from('recipes').select('name, recipe_ingredients(ingredient, grams_per_portion)');
+    
+    const consumptionMap = new Map<string, number>();
     let totalKgGlobal = 0;
     let totalPortions = 0;
 
-    for (const [prato, qtdVendida] of pratosVendidos.entries()) {
-      totalPortions += qtdVendida;
-      const ingredientes = recipesMap.get(prato);
-      if (ingredientes) {
-        ingredientes.forEach((ing: any) => {
-          const kgGasto = (ing.grams_per_portion * qtdVendida) / 1000;
-          totalKgGlobal += kgGasto;
-          consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kgGasto);
-        });
-      }
+    for (const [pratoNome, qtdVendida] of pratosVendidos.entries()) {
+        totalPortions += qtdVendida; // Conta o número de pratos
+        const recipe = allRecipes?.find(r => r.name.toUpperCase() === pratoNome);
+        if (recipe && recipe.recipe_ingredients) {
+            recipe.recipe_ingredients.forEach((ing: any) => {
+                const kgGasto = (ing.grams_per_portion * qtdVendida) / 1000;
+                totalKgGlobal += kgGasto;
+                consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kgGasto);
+            });
+        }
     }
 
-    // ---------------------------------------------------------
-    // 4. SALVAR DB COM OS PRATOS
-    // ---------------------------------------------------------
-    const weekCode = req.file.originalname.replace('.csv', '').trim() + '_' + Math.floor(Date.now() / 1000);
-    const pratosObj = Object.fromEntries(pratosVendidos);
+    // 6. SALVAR NA BASE DE DADOS USANDO A DATA COMO ID
+    const { data: weekRecord, error: weekErr } = await supabase.from('weeks').upsert({
+        week_code: finalDate, // Salva como 2026-05-12 em vez de W19
+        total_portions: totalPortions,
+        total_kg: totalKgGlobal,
+        valor_total: faturamentoDia,
+        pratos_vendidos: Object.fromEntries(pratosVendidos)
+    }, { onConflict: 'week_code' }).select('id').single();
 
-    const { data: upsertedWeek, error: weekErr } = await supabase.from('weeks')
-      .upsert({
-          week_code: weekCode, total_portions: totalPortions, total_kg: totalKgGlobal,
-          valor_total: valorTotalVenda, pratos_vendidos: pratosObj
-      }, { onConflict: 'week_code' })
-      .select('id').single();
+    if (weekErr || !weekRecord) throw new Error('Erro ao salvar no banco de dados. ' + weekErr?.message);
 
-    if (weekErr || !upsertedWeek) throw new Error('Erro ao criar registro da semana.');
+    // Apaga os registros antigos desse dia específico e insere os novos (impede duplicação)
+    await supabase.from('consumption_records').delete().eq('week_id', weekRecord.id);
 
-    const consumptionRecords = Array.from(consumptionMap.entries()).map(([ing, kg]) => ({
-      week_id: upsertedWeek.id, ingredient: ing, kg: kg
+    const records = Array.from(consumptionMap.entries()).map(([ing, kg]) => ({
+        week_id: weekRecord.id, ingredient: ing, kg: kg
     }));
-
-    if (consumptionRecords.length > 0) {
-      await supabase.from('consumption_records').insert(consumptionRecords);
+    
+    if (records.length > 0) {
+        await supabase.from('consumption_records').insert(records);
     }
 
-    res.json({ success: true, message: `Upload concluído com Sucesso!\n\nFaturamento: R$ ${valorTotalVenda.toFixed(2).replace('.', ',')}\nPratos Lidos: ${totalPortions}` });
+    res.json({ success: true, message: `✅ Movimento Diário de ${finalDate} Salvo!\nFaturamento Lançado: R$ ${faturamentoDia.toFixed(2)}\nPratos Computados: ${totalPortions}` });
 
-  } catch (err: any) { res.status(500).json({ error: err.message }); }
-  finally { if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e){} } }
+  } catch (err: any) { 
+    res.status(500).json({ error: err.message }); 
+  } finally {
+    if (req.file) { try { require('fs').unlinkSync(req.file.path); } catch(e) {} }
+  }
 });
 
 // ── DELETE Routes (Lixeiras) ─────────────────────────────────
