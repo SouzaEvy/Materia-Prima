@@ -291,13 +291,12 @@ app.put('/api/estoque-manual/justificativa/:id', async (req: Request, res: Respo
 });
 
 // ==========================================
-// 🛎️ UPLOAD DE VENDAS (PDV) - ROTA ÚNICA, DEFINITIVA E TIPADA
+// 🛎️ UPLOAD DE VENDAS (PDV) - LÓGICA DIÁRIA DEFINITIVA (DATA + TOTAL FINAL)
 // ==========================================
 app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.file) throw new Error('Nenhum arquivo enviado.');
+    if (!req.file) throw new Error('Nenhum ficheiro enviado.');
 
-    // Usa o fs importado globalmente no topo do ficheiro (import fs from 'fs')
     const raw = fs.readFileSync(req.file.path);
     let fileContent = raw.toString('utf8');
     
@@ -314,126 +313,108 @@ app.post('/api/weeks/upload', upload.single('file'), async (req: Request, res: R
         }
     }
 
-    // Carrega o leitor de HTML
     const $ = cheerio.load(fileContent);
 
-    // 2. EXTRAÇÃO DA DATA REAL (Ex: 12/05/2026 -> vira 2026-05-12)
+    // 2. EXTRAÇÃO DA DATA REAL (Busca o dia do movimento no texto)
     let finalDate = "";
-    const dateMatch = $('body').text().match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    const bodyText = $('body').text();
+    const dateMatch = bodyText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
     if (dateMatch) {
-        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+        finalDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // vira 2026-04-29
     } else {
         finalDate = new Date().toISOString().split('T')[0];
     }
 
-    // 3. EXTRAÇÃO DO FATURAMENTO (Acha a primeira caixa do Dia)
-    let faturamentoDia = 0;
-    let encontrouFaturamento = false;
-
-    // TIPAGEM APLICADA: _idx: number, table: any
-    $('table').each((_idx: number, table: any) => {
-        if (encontrouFaturamento) return;
-        const text = $(table).text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        if (text.includes('POSICAO DE CAIXA (DO DIA)')) {
-            
-            // TIPAGEM APLICADA: _rIdx: number, tr: any
-            $(table).find('tr').each((_rIdx: number, tr: any) => {
-                const rowText = $(tr).text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                if (rowText.includes('PRODUTOS VENDIDOS')) {
-                    const valStr = $(tr).find('td').last().text().replace('R$', '').trim();
-                    const val = parseFloat(valStr.replace(/\./g, '').replace(',', '.'));
-                    if (!isNaN(val)) {
-                        faturamentoDia = val;
-                        encontrouFaturamento = true;
-                    }
-                }
-            });
-        }
-    });
-
-    // 4. EXTRAÇÃO DOS PRATOS DO DIA
+    let faturamentoTotal = 0;
     const pratosVendidos = new Map<string, number>();
-    let encontrouTabelaPratos = false;
 
-    // TIPAGEM APLICADA
-    $('table').each((_idx: number, table: any) => {
-        if (encontrouTabelaPratos) return;
-        const firstRow = $(table).find('tr').first().text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    // 3. PROCESSADOR DE TABELAS (Acha Produtos e o Total no Fim)
+    $('table').each((_i: number, table: any) => {
+        const rows = $(table).find('tr');
+        const firstRowText = $(rows[0]).text().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         
-        if (firstRow.includes('PRODUTOS VENDIDOS') && !firstRow.includes('POSICAO DE CAIXA')) {
-            encontrouTabelaPratos = true;
+        // Verifica se é a tabela detalhada de produtos vendidos
+        if (firstRowText.includes('PRODUTOS VENDIDOS') && !firstRowText.includes('POSICAO DE CAIXA')) {
             
-            // TIPAGEM APLICADA
-            $(table).find('tr').each((_rIdx: number, tr: any) => {
+            rows.each((_j: number, tr: any) => {
                 const tds = $(tr).find('td');
-                if (tds.length >= 2) {
-                    const nome = $(tds[0]).text().trim().toUpperCase();
-                    // Ignora cabeçalhos e rodapés da tabela
-                    if (nome === 'TOTAL' || nome.includes('SISTEMA AGILE') || nome === 'PRODUTO' || nome === 'DESCRICAO') return;
-                    
-                    const qtd = parseFloat($(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
-                    if (nome && !isNaN(qtd) && qtd > 0) {
-                        pratosVendidos.set(nome, (pratosVendidos.get(nome) || 0) + qtd);
+                if (tds.length < 2) return;
+
+                const col0 = $(tds[0]).text().trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                
+                // PEGA O VALOR TOTAL NO FINAL DA TABELA (Sua solicitação!)
+                if (col0 === 'TOTAL') {
+                    const fullRowText = $(tr).text().replace('Total', '').replace('R$', '').trim();
+                    const moneyMatch = fullRowText.match(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}/);
+                    if (moneyMatch) {
+                        faturamentoTotal = parseFloat(moneyMatch[0].replace(/\./g, '').replace(',', '.'));
                     }
+                    return;
+                }
+
+                // Ignora cabeçalhos
+                if (col0 === 'PRODUTO' || col0 === 'PRODUTOS VENDIDOS' || col0 === 'DESCRICAO') return;
+
+                const nomePrato = $(tds[0]).text().trim().toUpperCase();
+                let qtdRaw = $(tds[1]).text().trim();
+                const qtd = parseFloat(qtdRaw.replace(/\./g, '').replace(',', '.'));
+
+                if (nomePrato && !isNaN(qtd) && qtd > 0) {
+                    pratosVendidos.set(nomePrato, (pratosVendidos.get(nomePrato) || 0) + qtd);
                 }
             });
         }
     });
 
-    if (pratosVendidos.size === 0) throw new Error("Não consegui achar os pratos vendidos. Verifique o arquivo.");
+    if (pratosVendidos.size === 0) throw new Error("Não consegui extrair os produtos. Verifique se o e-mail contém a tabela 'Produtos Vendidos'.");
 
-    // 5. O JEITO ANTIGO E PERFEITO DAS FICHAS TÉCNICAS
+    // 4. LÓGICA ANTIGA DAS FICHAS TÉCNICAS (ABATIMENTO DE ESTOQUE)
     const { data: allRecipes } = await supabase.from('recipes').select('name, recipe_ingredients(ingredient, grams_per_portion)');
     
     const consumptionMap = new Map<string, number>();
-    let totalKgGlobal = 0;
     let totalPortions = 0;
 
     for (const [pratoNome, qtdVendida] of pratosVendidos.entries()) {
-        totalPortions += qtdVendida; // Conta o número de pratos
-        
-        // TIPAGEM APLICADA: r: any
+        totalPortions += qtdVendida;
+        // TIPAGEM PARA O VS CODE NÃO RECLAMAR
         const recipe = allRecipes?.find((r: any) => r.name.toUpperCase() === pratoNome);
+        
         if (recipe && recipe.recipe_ingredients) {
-            
-            // TIPAGEM APLICADA: ing: any
             recipe.recipe_ingredients.forEach((ing: any) => {
                 const kgGasto = (ing.grams_per_portion * qtdVendida) / 1000;
-                totalKgGlobal += kgGasto;
                 consumptionMap.set(ing.ingredient, (consumptionMap.get(ing.ingredient) || 0) + kgGasto);
             });
         }
     }
 
-    // 6. SALVAR NA BASE DE DADOS USANDO A DATA COMO ID
+    // 5. SALVAR NO BANCO (Upsert pela DATA para matar o erro das semanas)
+    const pratosObj = Object.fromEntries(pratosVendidos);
     const { data: weekRecord, error: weekErr } = await supabase.from('weeks').upsert({
-        week_code: finalDate, // Salva como 2026-05-12
+        week_code: finalDate, // Salva como '2026-05-12' e não 'W19'
         total_portions: totalPortions,
-        total_kg: totalKgGlobal,
-        valor_total: faturamentoDia,
-        pratos_vendidos: Object.fromEntries(pratosVendidos)
+        valor_total: faturamentoTotal,
+        pratos_vendidos: pratosObj
     }, { onConflict: 'week_code' }).select('id').single();
 
-    if (weekErr || !weekRecord) throw new Error('Erro ao salvar no banco de dados. ' + weekErr?.message);
+    if (weekErr || !weekRecord) throw new Error('Erro ao salvar no banco: ' + weekErr?.message);
 
-    // Apaga os registros antigos desse dia específico e insere os novos (impede duplicação)
+    // Limpa consumos antigos do dia para não duplicar
     await supabase.from('consumption_records').delete().eq('week_id', weekRecord.id);
 
-    // TIPAGEM APLICADA: [string, number]
     const records = Array.from(consumptionMap.entries()).map(([ing, kg]: [string, number]) => ({
         week_id: weekRecord.id, ingredient: ing, kg: kg
     }));
     
-    if (records.length > 0) {
-        await supabase.from('consumption_records').insert(records);
-    }
+    if (records.length > 0) await supabase.from('consumption_records').insert(records);
 
-    res.json({ success: true, message: `✅ Movimento Diário de ${finalDate} Salvo!\nFaturamento Lançado: R$ ${faturamentoDia.toFixed(2)}\nPratos Computados: ${totalPortions}` });
+    res.json({ 
+        success: true, 
+        message: `✅ SUCESSO! Movimento de ${finalDate} processado.\nFaturamento Extraído: R$ ${faturamentoTotal.toFixed(2)}\nPratos Lidos: ${totalPortions}` 
+    });
 
   } catch (err: any) { 
     res.status(500).json({ error: err.message }); 
   } finally {
-    // Usa o fs seguro importado no topo
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch(e) {} }
   }
 });
